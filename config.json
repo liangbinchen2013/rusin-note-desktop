@@ -1,31 +1,31 @@
 {
   "max_note_size_kb": 512,
-  "sitename": "如形の笔记",
+  "sitename": "如形本地笔记",
   "rate_limit": {
     "window_seconds": 60,
-    "max_requests": 30
+    "max_requests": 600
   },
   "get_rate_limit": {
     "window_seconds": 60,
-    "max_requests": 45
+    "max_requests": 600
   },
   "save_rate_limit": {
     "window_seconds": 60,
-    "max_requests": 120
+    "max_requests": 600
   },
   "register_rate_limit": {
-    "window_seconds": 5,
-    "max_requests": 2
+    "window_seconds": 60,
+    "max_requests": 50
   },
   "ip_rate_limit": {
     "window_seconds": 60,
-    "max_requests": 300
+    "max_requests": 0
   },
   "todos": {
     "max_items": 100,
     "max_length": 200
   },
-  "trust_proxy_headers": true,
+  "trust_proxy_headers": false,
   "trusted_proxies": [
     "loopback",
     "private"
@@ -33,7 +33,7 @@
   "proxy_hops": 1,
   "ip_allowlist": [],
   "ip_blocklist": [],
-  "secure_cookies": true,
+  "secure_cookies": false,
   "global_cdn": "https://cdn.jsdmirror.cn",
   "id_generation": {
     "length": 4,
@@ -62,7 +62,7 @@
     "enabled": true
   },
   "cache": {
-    "enabled": true,
+    "enabled": false,
     "backend": "redis",
     "default_timeout": 300,
     "redis_url": "redis://localhost:6379/0"
@@ -96,7 +96,7 @@
     "recent_shares_limit": 5
   },
   "avatar": {
-    "enabled": true,
+    "enabled": false,
     "url_template": "https://cn.cravatar.com/avatar/{hash}?d=identicon&f=y",
     "size": 24
   },
@@ -232,9 +232,14 @@
       "max_registrations": 2
     }
   },
+  "plugins": {
+    "enabled": false
+  },
   "features": {
     "world_notes": true,
     "benben": true,
+    "login_captcha": false,
+    "downloads": false,
     "share_links": true,
     "open_register": true,
     "note_tags": true,

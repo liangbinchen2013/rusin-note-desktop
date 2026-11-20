@@ -65,7 +65,7 @@ def _redis_available(url: str) -> bool:
 def _init_cache_backend(app: Flask) -> None:
     """根据 config.json 的 cache.backend 配置初始化缓存后端，自动降级到 SimpleCache"""
     if not config.CACHE_ENABLED:
-        cache.init_app(app, config={"CACHE_TYPE": "null"})
+        cache.init_app(app, config={"CACHE_TYPE": "NullCache"})
         return
     backend = config.CACHE_BACKEND
     if backend == "redis":
