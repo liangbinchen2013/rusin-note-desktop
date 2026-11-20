@@ -1,70 +1,76 @@
-# 如形本地笔记（rusin-note-local）
+# 如形本地笔记 · IDE 版
 
-本地优先的笔记应用：笔记、犇犇、附件都落在自己的电脑，同时可以**拉取云端犇犇/笔记**、**把本地笔记推送到 rusin-note 网页版**。云端同步直接调用站点原有的表单 POST，慢速增量执行，不需要修改云端源码。
+本地优先的 Markdown 笔记工作台：打开就是一个类似 IDE 的界面——活动栏、文件树、多标签编辑器、Monaco 代码编辑器、Markdown 实时预览、命令面板和状态栏。笔记全部存在本机，同时可按需与 rusin-note 云端同步（拉取犇犇/笔记、推送本地笔记）。
 
-## 它和上游 rusin-note 的关系
+## 技术栈
 
-- 基础是 `rusin-note` 仓库的 Flask 网页版（`app/`、`templates/`、`config.json`），完整保留笔记、Markdown、标签、文件夹、图床、附件、犇犇、组织等能力。
-- 本地化改动：
-  - `config.json` 关闭注册验证码、Redis 缓存、插件和对外下载页；放宽限流；关闭 Secure Cookie（本地是 `http://127.0.0.1`）。
-  - 修复 Flask-Caching 2.x 下 `CACHE_TYPE: "null"` 无法导入的问题。
-  - 新增 `cloudsync/` 同步模块与 `/sync` 页面；`main.py` 启动本地服务并打开原生窗口。
-- 上游仓库 `C:/Users/ALIENWARE/Desktop/rusin-note` 未被修改。
+- **外壳**：Flask 本地服务 + pywebview 原生窗口（仅监听 `127.0.0.1`），失败时回退系统浏览器
+- **前端**：React 18 + Vite 6 + Monaco Editor，暗色/浅色主题
+- **后端**：保留 rusin-note 的 SQLite/JSON 存储、标签、文件夹与同步逻辑；新增 `/api/ide` JSON API
+- **同步**：`cloudsync/` 直接调用云端站点原有表单 POST，慢速增量，不改云端源码
 
 ## 快速开始
 
-需要 Python 3.10+ 与 [uv](https://docs.astral.sh/uv/)。Windows 上直接双击 `start-local.bat`，或命令行：
+需要 Python 3.10+、[uv](https://docs.astral.sh/uv/)；Windows 可直接双击 `start-local.bat`。
 
 ```bash
 uv sync
 uv run python main.py
 ```
 
-`main.py` 会选择一个空闲端口，只监听 `127.0.0.1`，然后：
+`main.py` 会自动选择空闲端口、启动本地服务并打开原生窗口（WebView2），窗口不可用时自动开浏览器。`--browser` 强制浏览器，`--port 8080` 固定端口。
 
-- 优先用 pywebview 打开原生窗口（Windows 需要 WebView2 运行时，Win10/11 通常已预装）；
-- 原生窗口不可用时自动回退到系统浏览器；
-- `uv run python main.py --browser` 可强制使用浏览器；`--port 8080` 可固定端口。
+前端构建产物已提交在 `web/dist/`，开箱即用。修改前端后重新构建：
 
-首次打开按页面提示注册本地账号即可。所有数据在工作区的 `data/` 目录（已加入 `.gitignore`），备份时复制整个目录；想彻底重置就删掉它（会丢失全部本地笔记）。
+```bash
+cd web
+npm install
+npm run build
+```
+
+开发前端时可另开终端跑 `npm run dev`（默认 5173），Vite 会把 `/api` 代理到 `http://127.0.0.1:18080`。
+
+## IDE 界面
+
+| 区域 | 功能 |
+|---|---|
+| 左侧活动栏 | 资源管理器、搜索、云端同步、设置、主题切换、命令面板 |
+| 资源管理器 | 按文件夹（`/` 分层）展示笔记树；新建、删除、刷新 |
+| 搜索 | 按标题、ID、标签、正文全文检索，带摘要 |
+| 编辑器 | 多标签页；Monaco Markdown 编辑；右侧实时预览（GFM、表格、代码高亮、KaTeX） |
+| 命令面板 | `Ctrl+P` 快速打开笔记/命令；`Ctrl+Shift+P` 也可打开 |
+| 状态栏 | 当前用户、云端配置状态、字数、保存状态、路径 |
+
+快捷键：`Ctrl+S` 保存，`Ctrl+P` 命令面板。编辑后 1.5 秒自动保存；文件夹和标签在编辑器顶部直接修改。数据目录仍是工作区 `data/`，备份整个目录即可。
+
+旧版 Jinja 页面（登录、注册、管理页等）仍保留在原路由上，但启动首页现在是 React IDE。
 
 ## 云端同步
 
-打开左侧栏（或导航栏）的 **云端同步**，填入：
+在活动栏点云朵图标进入同步面板，填写：
 
-| 字段 | 说明 |
-|---|---|
-| 云端地址 | 你的 rusin-note 站点根地址，如 `https://note.example.com` |
-| 云端用户名 | 该站点上要同步的账号 |
-| 登录 Cookie | 浏览器登录站点后，从开发者工具复制 `rusin_session` 的值 |
-| 本地用户名 | 要同步的本地账号；只有一个本地用户时可留空自动识别 |
+- 云端地址（如 `https://note.example.com`）
+- 云端用户名
+- 浏览器登录云端后复制的 `rusin_session` Cookie（留空表示沿用已保存值）
+- 本地用户名（只有一个本地用户时可留空）
 
- Cookie 用本地生成的密钥加密后保存在 `data/sync_settings.json`，**等同于云端登录态，不要分享该文件**。云端若使用了验证码/2FA，从浏览器里复制现成的 Cookie 是最省事的方式。
+支持：测试连接、拉取云端犇犇（按签名去重）、拉取云端笔记（保存为 `c-<ID>` 镜像）、推送本地笔记（按内容哈希增量 POST）、推送本地犇犇（间隔 3.5 秒避开冷却）、全部同步。Cookie 加密保存在 `data/sync_settings.json`，运行记录保存在 `data/sync_state.json`。
 
-可用操作：
-
-- **测试连接**：验证 Cookie 是否有效。
-- **拉取云端犇犇**：读取站点 `/benben` 前 N 页，按「用户名 + 时间 + 正文」签名去重后写入本地犇犇流。
-- **拉取云端笔记**：把云端笔记镜像为本地 `c-<原ID>` 笔记，不会覆盖本地同名笔记；内容变化时更新镜像。
-- **推送本地笔记**：逐篇把本地笔记 POST 到云端 `/user/<用户名>/<笔记ID>`，同时带上标签和文件夹。按内容哈希做增量同步，未改动自动跳过；可选「允许覆盖云端同名笔记」。
-- **推送本地犇犇**：把本地账号发布的动态发到云端，间隔 3.5 秒以避开云端 3 秒冷却。
-- **全部同步**：依次执行拉取犇犇、拉取云端笔记、推送本地笔记。
-
-同步是手动触发的，不做后台轮询；每次操作的结果与详情保存在 `data/sync_state.json`，页面上能看到最近 20 条记录。请求间隔默认 0.3 秒，可在设置里调大以进一步降低对云端的压力。
-
-> 云端站点目前没有笔记/犇犇的 JSON API，客户端按其 HTML 表单与页面结构实现；如果云端模板大改，解析可能需要同步更新。云端触发限流（429）时会停止并给出提示，稍后重试即可。
+> 云端没有笔记/犇犇的 JSON API，同步按其 HTML 页面与表单实现；云端模板大改时解析逻辑可能需要更新。
 
 ## 目录
 
 ```plaintext
 rusin-note-desktop/
-├─ main.py               本地入口（本地服务 + WebView/浏览器）
-├─ start-local.bat       Windows 双击启动
-├─ config.json           本地化后的应用配置
-├─ app/ templates/       上游 Flask 应用与模板
-├─ cloudsync/            同步模块（settings / client / service / views）
-├─ data/                 运行时数据（笔记、SQLite 索引、同步配置与状态）
-└─ tests/                同步模块单元测试
+├─ main.py                本地入口（本地服务 + WebView/浏览器）
+├─ start-local.bat        Windows 双击启动
+├─ config.json            本地化后的应用配置
+├─ app/ templates/        上游 Flask 应用与模板（兼容保留）
+├─ ideapi/                本地 IDE JSON API + 前端托管
+├─ cloudsync/             云端同步模块
+├─ web/                   React + Vite + Monaco 前端；dist/ 为构建产物
+├─ data/                  运行时数据（git 忽略）
+└─ tests/                 后端 / API / 同步测试
 ```
 
 ## 测试
@@ -73,4 +79,4 @@ rusin-note-desktop/
 uv run pytest tests/ -q
 ```
 
-测试会在临时数据目录中运行，不触碰 `data/`。
+测试使用临时数据目录，不触碰真实的 `data/`。

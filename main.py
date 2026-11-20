@@ -57,7 +57,8 @@ def main() -> int:
             storage_path = ROOT / "data" / "webview"
             storage_path.mkdir(parents=True, exist_ok=True)
             window = webview.create_window(
-                "如形本地笔记", url=url, width=1280, height=860, min_size=(900, 600)
+                "如形本地笔记 · IDE", url=url, width=1440, height=900,
+                min_size=(1024, 680), maximized=True,
             )
             webview.start(private_mode=False, storage_path=str(storage_path))
             opened_window = True
