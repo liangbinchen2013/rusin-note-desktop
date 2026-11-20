@@ -30,6 +30,20 @@ npm run build
 
 开发前端时可另开终端跑 `npm run dev`（默认 5173），Vite 会把 `/api` 代理到 `http://127.0.0.1:18080`。
 
+## 打包 exe
+
+```bash
+uv run python release/build.py
+```
+
+产物是单文件 `dist/rusin-note-ide.exe`。默认 **slim 模式**：剔除旧 Jinja 页面用的 vditor 等大资源，并排除本地用不到的 psycopg / redis / Pillow / mangum，体积明显更小。可选项：
+
+- `--full`：连旧版前端资源一起打包（体积更大）；
+- `--onedir`：目录模式，启动更快但不是一个单独文件；
+- `--console`：保留控制台窗口，启动失败时方便看日志。
+
+打包后的数据不写在 exe 目录，而是 `%APPDATA%\rusin-note-local\`（macOS / Linux 见 `main.py`）；可用环境变量 `RUSIN_DESKTOP_DATA_DIR` 覆盖。Windows 运行仍需 WebView2 运行时（Win10/11 通常已预装），缺失时会自动回退系统浏览器。
+
 ## IDE 界面
 
 | 区域 | 功能 |
