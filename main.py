@@ -1,7 +1,8 @@
 """本地优先的 rusin-note 应用入口。
 
 启动一个只监听 127.0.0.1 的本地服务，再用原生窗口（pywebview）打开；
-窗口不可用时回退到系统浏览器。笔记数据保存在工作区 data/ 目录。
+窗口不可用时回退到系统浏览器。开发模式数据在工作区 data/，打包后
+数据落在使用者目录（Windows 为 %APPDATA%\\rusin-note-local）。
 """
 
 from __future__ import annotations
@@ -14,10 +15,24 @@ import threading
 import webbrowser
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-# 应用的 config.json / data 都按当前工作目录解析，必须先切到项目根
-os.chdir(ROOT)
-os.environ.setdefault("RUSIN_DATA_DIR", str(ROOT / "data"))
+FROZEN = getattr(sys, "frozen", False)
+# 冻结后资源在 sys._MEIPASS 临时解压目录；源码模式就在项目根
+RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+
+if FROZEN:
+    if os.name == "nt":
+        default_data = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "rusin-note-local"
+    elif sys.platform == "darwin":
+        default_data = Path.home() / "Library" / "Application Support" / "rusin-note-local"
+    else:
+        default_data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "rusin-note-local"
+else:
+    default_data = RESOURCE_ROOT / "data"
+
+DATA_DIR = Path(os.environ.get("RUSIN_DESKTOP_DATA_DIR", str(default_data))).expanduser()
+# 应用的 config.json 按当前工作目录解析，冻结后也要切到资源根
+os.chdir(RESOURCE_ROOT)
+os.environ.setdefault("RUSIN_DATA_DIR", str(DATA_DIR))
 os.environ.setdefault("RUSIN_STORAGE", "sqlite")
 
 
@@ -47,14 +62,14 @@ def main() -> int:
     thread.start()
 
     print(f"本地服务已启动：{url}")
-    print("按 Ctrl+C 退出；笔记数据保存在 data/ 目录。")
+    print(f"笔记数据目录：{DATA_DIR}")
 
     opened_window = False
     if not args.browser:
         try:
             import webview
 
-            storage_path = ROOT / "data" / "webview"
+            storage_path = DATA_DIR / "webview"
             storage_path.mkdir(parents=True, exist_ok=True)
             window = webview.create_window(
                 "如形本地笔记 · IDE", url=url, width=1440, height=900,

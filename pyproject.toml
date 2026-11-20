@@ -14,10 +14,6 @@ dependencies = [
     "pymdown-extensions>=10.0,<12.0",
     "pygments>=2.15,<3.0",
     "bleach>=6.0,<6.3",
-    "redis>=5.0,<7.0",
-    "mangum>=0.17,<1.0",
-    "psycopg[binary]>=3.2,<4.0",
-    "pillow>=10.0,<12.0",
     "cryptography>=42,<50",
     "requests>=2.32,<3.0",
     "beautifulsoup4>=4.12,<5.0",
@@ -28,6 +24,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.0,<10.0",
+    "pyinstaller>=6.0,<7.0",
 ]
 
 [tool.pytest.ini_options]
