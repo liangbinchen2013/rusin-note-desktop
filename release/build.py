@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,10 +32,16 @@ def main() -> int:
         print("前端尚未构建，请先执行：cd web && npm install && npm run build", file=sys.stderr)
         return 1
 
+    dist = ROOT / "dist"
     env = os.environ.copy()
     env["RUSIN_BUILD_SLIM"] = "0" if args.full else "1"
     env["RUSIN_BUILD_ONEDIR"] = "1" if args.onedir else "0"
     env["RUSIN_BUILD_CONSOLE"] = "1" if args.console else "0"
+
+    # PyInstaller 会尝试删除旧 exe；Windows 上旧文件可能被预览/杀软锁定，先改名更稳
+    old_exe = dist / ("rusin-note-ide.exe" if os.name == "nt" else "rusin-note-ide")
+    if old_exe.exists():
+        old_exe.rename(dist / f"rusin-note-ide-prev-{int(time.time())}{old_exe.suffix}")
 
     print("开始打包…（单文件模式首次解压较慢，属正常现象）")
     subprocess.run(
@@ -43,7 +49,6 @@ def main() -> int:
         cwd=ROOT, env=env, check=True,
     )
 
-    dist = ROOT / "dist"
     if args.onedir:
         target = dist / "rusin-note-ide" / ("rusin-note-ide.exe" if os.name == "nt" else "rusin-note-ide")
         size = sum(p.stat().st_size for p in (dist / "rusin-note-ide").rglob("*") if p.is_file())

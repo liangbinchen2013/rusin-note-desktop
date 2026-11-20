@@ -138,6 +138,32 @@ class RemoteClient:
             raise SyncError(f"推送笔记 {note_id} 失败：{message or '表单校验失败'}")
         raise SyncError(f"推送笔记 {note_id} 失败：HTTP {response.status_code}")
 
+    def create_note(self, folder: str = "") -> str:
+        """在云端新建笔记，返回云端分配的笔记 ID。"""
+        response = self._request("GET", f"/user/{self.username}/new")
+        if response.status_code != 302:
+            raise SyncError(f"云端新建笔记失败（HTTP {response.status_code}）")
+        location = response.headers.get("Location", "")
+        match = re.search(rf"/user/{re.escape(self.username)}/([A-Za-z0-9_-]+)", location)
+        if not match:
+            raise SyncError(f"无法从云端响应解析笔记 ID：{location}")
+        note_id = match.group(1)
+        self.post_note(note_id, "\n", "", folder)
+        return note_id
+
+    def delete_note(self, note_id: str) -> bool:
+        """云端空内容保存即删除（会级联清理标签/文件夹/分享）。"""
+        path = f"/user/{self.username}/{note_id}"
+        csrf = self._csrf(path)
+        response = self._request(
+            "POST", path,
+            data={"csrf_token": csrf, "content": ""},
+            headers={"Referer": urljoin(self.base, path)},
+        )
+        if response.status_code == 302:
+            return True
+        raise SyncError(f"删除云端笔记 {note_id} 失败：HTTP {response.status_code}")
+
     def list_benben(self, max_pages: int = 1) -> list[dict]:
         posts: list[dict] = []
         for page in range(1, max(1, int(max_pages)) + 1):

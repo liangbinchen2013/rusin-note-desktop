@@ -9,6 +9,10 @@ import SettingsPanel from './components/SettingsPanel.jsx'
 import StatusBar from './components/StatusBar.jsx'
 import CommandPalette from './components/CommandPalette.jsx'
 
+const REMOTE_PREFIX = 'cloud:'
+const isRemoteKey = (key) => typeof key === 'string' && key.startsWith(REMOTE_PREFIX)
+const rawId = (key) => (isRemoteKey(key) ? key.slice(REMOTE_PREFIX.length) : key)
+
 function titleFrom(content, fallback) {
   const line = (content || '').split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('```'))
   return (line ? line.replace(/^#+\s*/, '').slice(0, 60) : '') || fallback || ''
@@ -17,13 +21,20 @@ function titleFrom(content, fallback) {
 export default function App() {
   const [boot, setBoot] = useState(null)
   const [notes, setNotes] = useState([])
+  const [remoteInfo, setRemoteInfo] = useState(null)
+  const [remoteNotes, setRemoteNotes] = useState([])
   const [tabs, setTabs] = useState([])
   const [activeId, setActiveId] = useState(null)
   const [draft, setDraft] = useState({ id: '', title: '', content: '', tags: [], folder: '', mtime: 0 })
   const [dirty, setDirty] = useState(false)
   const [view, setView] = useState('explorer')
-  const [theme, setTheme] = useState(() => localStorage.getItem('rusin-theme') || 'dark')
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('rusin-theme-mode') || 'dark')
+  const [systemDark, setSystemDark] = useState(() => (
+    typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches
+  ))
+  const theme = themeMode === 'system' ? (systemDark ? 'dark' : 'light') : themeMode
   const [preview, setPreview] = useState('split')
+  const [scrollSync, setScrollSync] = useState(true)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [message, setMessage] = useState('')
   const saveRef = useRef(null)
@@ -45,9 +56,30 @@ export default function App() {
     }
   }, [showMessage])
 
-  const openNote = useCallback(async (id) => {
+  const refreshRemote = useCallback(async () => {
     try {
-      const data = await api.getNote(id)
+      const info = await api.remoteStatus()
+      setRemoteInfo(info)
+      if (info.configured) {
+        const data = await api.remoteNotes()
+        setRemoteNotes(data.notes || [])
+      } else {
+        setRemoteNotes([])
+      }
+    } catch (err) {
+      showMessage(err.message)
+    }
+  }, [showMessage])
+
+  const refreshAll = useCallback(async () => {
+    await refreshNotes()
+    await refreshRemote()
+  }, [refreshNotes, refreshRemote])
+
+  const openNote = useCallback(async (id, source = 'local') => {
+    const key = source === 'remote' ? REMOTE_PREFIX + id : id
+    try {
+      const data = source === 'remote' ? await api.getRemoteNote(id) : await api.getNote(id)
       setDraft({
         id: data.id,
         title: titleFrom(data.content, id),
@@ -56,8 +88,8 @@ export default function App() {
         folder: data.folder || '',
         mtime: data.mtime || 0,
       })
-      setActiveId(id)
-      setTabs((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      setActiveId(key)
+      setTabs((prev) => (prev.includes(key) ? prev : [...prev, key]))
       setDirty(false)
       setView('explorer')
     } catch (err) {
@@ -65,32 +97,45 @@ export default function App() {
     }
   }, [showMessage])
 
-  const createNote = useCallback(async (folder = '') => {
+  const openByKey = useCallback((key) => {
+    return openNote(rawId(key), isRemoteKey(key) ? 'remote' : 'local')
+  }, [openNote])
+
+  const createNote = useCallback(async (folder = '', source = 'local') => {
     try {
-      const data = await api.createNote(folder)
-      await refreshNotes()
-      await openNote(data.id)
-      showMessage(`已创建笔记 ${data.id}`)
+      const data = source === 'remote'
+        ? await api.createRemoteNote(folder)
+        : await api.createNote(folder)
+      await refreshAll()
+      await openNote(data.id, source)
+      showMessage(`已${source === 'remote' ? '在云端' : ''}创建笔记 ${data.id}`)
     } catch (err) {
       showMessage(err.message)
     }
-  }, [refreshNotes, openNote, showMessage])
+  }, [refreshAll, openNote, showMessage])
 
   const save = useCallback(async () => {
     if (!activeId || !dirty) return
+    const remote = isRemoteKey(activeId)
+    const payload = { content: draft.content, tags: draft.tags, folder: draft.folder }
     try {
-      const result = await api.saveNote(activeId, {
-        content: draft.content,
-        tags: draft.tags,
-        folder: draft.folder,
-      })
-      const title = titleFrom(draft.content, activeId)
-      setDraft((prev) => ({ ...prev, title, mtime: result.mtime || prev.mtime }))
-      setNotes((prev) => prev.map((n) => (
-        n.id === activeId ? { ...n, title, tags: draft.tags, folder: draft.folder, mtime: result.mtime || n.mtime } : n
-      )))
+      if (remote) {
+        await api.saveRemoteNote(rawId(activeId), payload)
+      } else {
+        const result = await api.saveNote(activeId, payload)
+        setDraft((prev) => ({ ...prev, mtime: result.mtime || prev.mtime }))
+      }
+      const title = titleFrom(draft.content, rawId(activeId))
+      setDraft((prev) => ({ ...prev, title }))
+      const update = (note) => (
+        note.id === rawId(activeId)
+          ? { ...note, title, tags: draft.tags, folder: draft.folder }
+          : note
+      )
+      if (remote) setRemoteNotes((prev) => prev.map(update))
+      else setNotes((prev) => prev.map(update))
       setDirty(false)
-      showMessage('已保存')
+      showMessage(remote ? '已保存到云端' : '已保存')
     } catch (err) {
       showMessage(err.message)
     }
@@ -98,39 +143,53 @@ export default function App() {
   saveRef.current = save
 
   const deleteCurrent = useCallback(async () => {
-    if (!activeId || !window.confirm(`删除笔记「${draft.title || activeId}」？`)) return
+    if (!activeId || !window.confirm(`删除「${draft.title || rawId(activeId)}」？`)) return
+    const remote = isRemoteKey(activeId)
     try {
-      await api.deleteNote(activeId)
-      const remaining = tabs.filter((id) => id !== activeId)
+      if (remote) await api.deleteRemoteNote(rawId(activeId))
+      else await api.deleteNote(activeId)
+      const remaining = tabs.filter((key) => key !== activeId)
       setTabs(remaining)
-      if (remaining.length) await openNote(remaining[remaining.length - 1])
+      if (remaining.length) await openByKey(remaining[remaining.length - 1])
       else {
         setActiveId(null)
         setDraft({ id: '', title: '', content: '', tags: [], folder: '', mtime: 0 })
         setDirty(false)
       }
-      await refreshNotes()
-      showMessage('笔记已删除')
+      await refreshAll()
+      showMessage(remote ? '云端笔记已删除' : '笔记已删除')
     } catch (err) {
       showMessage(err.message)
     }
-  }, [activeId, draft.title, tabs, openNote, refreshNotes, showMessage])
+  }, [activeId, draft.title, tabs, openByKey, refreshAll, showMessage])
 
-  const closeTab = useCallback((id) => {
-    const remaining = tabs.filter((tab) => tab !== id)
+  const closeTab = useCallback((key) => {
+    const remaining = tabs.filter((tab) => tab !== key)
     setTabs(remaining)
-    if (id === activeId) {
-      if (remaining.length) openNote(remaining[remaining.length - 1])
+    if (key === activeId) {
+      if (remaining.length) openByKey(remaining[remaining.length - 1])
       else { setActiveId(null); setDirty(false) }
     }
-  }, [tabs, activeId, openNote])
+  }, [tabs, activeId, openByKey])
 
-  useEffect(() => { refreshNotes() }, [refreshNotes])
+  useEffect(() => { refreshAll() }, [refreshAll])
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (event) => setSystemDark(event.matches)
+    media.addEventListener?.('change', handler)
+    return () => media.removeEventListener?.('change', handler)
+  }, [])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-    localStorage.setItem('rusin-theme', theme)
-  }, [theme])
+    localStorage.setItem('rusin-theme-mode', themeMode)
+  }, [theme, themeMode])
+
+  const cycleTheme = useCallback(() => {
+    setThemeMode((mode) => (mode === 'dark' ? 'light' : mode === 'light' ? 'system' : 'dark'))
+  }, [])
 
   useEffect(() => {
     if (!dirty) return undefined
@@ -140,21 +199,28 @@ export default function App() {
 
   const paletteCommands = useMemo(() => {
     const actions = [
-      { label: '新建笔记', hint: '在当前工作区创建', run: () => createNote('') },
+      { label: '新建本地笔记', run: () => createNote('', 'local') },
+      { label: '新建云端笔记', hint: '需先配置云端', run: () => createNote('', 'remote') },
       { label: '保存当前笔记', hint: 'Ctrl+S', run: () => saveRef.current?.() },
       { label: '删除当前笔记', hint: '需要确认', run: () => deleteCurrent() },
-      { label: '全部同步', hint: '拉取并推送', run: async () => { setView('sync'); await api.runSync('sync_all'); refreshNotes(); showMessage('全部同步完成') } },
+      { label: '全部同步', hint: '拉取并推送', run: async () => { setView('sync'); await api.runSync('sync_all'); refreshAll(); showMessage('全部同步完成') } },
       { label: '打开云端同步面板', run: () => setView('sync') },
-      { label: '切换主题', run: () => setTheme((t) => (t === 'dark' ? 'light' : 'dark')) },
+      { label: '切换主题（暗色 / 亮色 / 跟随系统）', run: cycleTheme },
       { label: '切换预览', run: () => setPreview((p) => (p === 'off' ? 'split' : 'off')) },
+      { label: '切换滚动同步', run: () => setScrollSync((v) => !v) },
     ]
-    const noteCommands = notes.map((note) => ({
+    const localCommands = notes.map((note) => ({
       label: `打开：${note.title || note.id}`,
-      hint: note.folder || note.id,
-      run: () => openNote(note.id),
+      hint: `本地 · ${note.folder || note.id}`,
+      run: () => openNote(note.id, 'local'),
     }))
-    return [...actions, ...noteCommands]
-  }, [notes, createNote, deleteCurrent, openNote, refreshNotes, showMessage])
+    const cloudCommands = remoteNotes.map((note) => ({
+      label: `打开云端：${note.title || note.id}`,
+      hint: `云端 · ${note.folder || note.id}`,
+      run: () => openNote(note.id, 'remote'),
+    }))
+    return [...actions, ...localCommands, ...cloudCommands]
+  }, [notes, remoteNotes, createNote, deleteCurrent, openNote, refreshAll, showMessage, cycleTheme])
 
   useEffect(() => {
     const onKey = (event) => {
@@ -174,14 +240,15 @@ export default function App() {
   }, [])
 
   const showWide = view === 'sync' || view === 'settings'
+  const activeRemote = isRemoteKey(activeId)
 
   return (
     <div className="app-shell">
       <ActivityBar
         view={view}
         onView={setView}
-        theme={theme}
-        onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+        themeMode={themeMode}
+        onCycleTheme={cycleTheme}
         onPalette={() => setPaletteOpen(true)}
       />
       {!showWide && (
@@ -189,24 +256,43 @@ export default function App() {
           {view === 'explorer' ? (
             <Explorer
               notes={notes}
-              activeId={activeId}
-              onOpen={openNote}
-              onNew={createNote}
+              activeId={activeRemote ? null : activeId}
+              onOpen={(id) => openNote(id, 'local')}
+              onNew={(folder) => createNote(folder, 'local')}
               onRefresh={refreshNotes}
-              onDelete={async (id) => { await api.deleteNote(id); await refreshNotes(); if (id === activeId) closeTab(id) }}
+              onDelete={async (id) => {
+                await api.deleteNote(id)
+                await refreshNotes()
+                if (id === activeId) closeTab(id)
+              }}
+              remoteNotes={remoteNotes}
+              remoteInfo={remoteInfo}
+              activeRemoteId={activeRemote ? rawId(activeId) : null}
+              onOpenRemote={(id) => openNote(id, 'remote')}
+              onNewRemote={(folder) => createNote(folder, 'remote')}
+              onDeleteRemote={async (id) => {
+                await api.deleteRemoteNote(id)
+                await refreshRemote()
+                if (REMOTE_PREFIX + id === activeId) closeTab(REMOTE_PREFIX + id)
+              }}
+              onRefreshRemote={refreshRemote}
             />
           ) : (
-            <SearchPanel onOpen={openNote} />
+            <SearchPanel onOpen={(id) => openNote(id, 'local')} />
           )}
         </aside>
       )}
       <main className={`main-area ${showWide ? 'wide' : ''}`}>
         {view === 'sync' ? (
-          <SyncPanel onToast={showMessage} onNotesChanged={refreshNotes} />
+          <SyncPanel
+            onToast={showMessage}
+            onNotesChanged={refreshAll}
+            onSettingsSaved={refreshRemote}
+          />
         ) : view === 'settings' ? (
           <SettingsPanel
-            theme={theme}
-            onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            themeMode={themeMode}
+            onThemeMode={setThemeMode}
             user={boot?.user}
             stats={boot?.stats}
             siteName={boot?.siteName}
@@ -220,6 +306,9 @@ export default function App() {
             theme={theme}
             preview={preview}
             onPreviewChange={setPreview}
+            scrollSync={scrollSync}
+            onScrollSyncChange={setScrollSync}
+            remote={activeRemote}
             onChange={(content) => { setDraft((prev) => ({ ...prev, content })); setDirty(true) }}
             onFieldChange={(key, value) => {
               const next = key === 'tags'
@@ -230,13 +319,13 @@ export default function App() {
             }}
             onSave={save}
             onCloseTab={closeTab}
-            onOpen={openNote}
+            onOpen={openByKey}
           />
         )}
       </main>
       <StatusBar
         user={boot?.user || '…'}
-        active={activeId}
+        active={activeId ? rawId(activeId) : null}
         draft={draft}
         dirty={dirty}
         syncConfigured={!!boot?.syncConfigured}

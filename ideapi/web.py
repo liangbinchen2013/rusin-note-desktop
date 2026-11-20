@@ -29,3 +29,8 @@ def assets(filename: str):
 @bp.route("/favicon.svg")
 def favicon():
     return send_from_directory(DIST, "favicon.svg")
+
+
+@bp.route("/logo.png")
+def logo():
+    return send_from_directory(DIST, "logo.png")

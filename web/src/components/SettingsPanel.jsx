@@ -1,6 +1,12 @@
-import { Settings2, Sun, Moon, Database, Keyboard } from 'lucide-react'
+import { Settings2, Sun, Moon, Monitor, Database, Keyboard } from 'lucide-react'
 
-export default function SettingsPanel({ theme, onToggleTheme, user, stats, siteName }) {
+const modes = [
+  { id: 'light', label: '亮色', icon: Sun },
+  { id: 'dark', label: '暗色', icon: Moon },
+  { id: 'system', label: '跟随系统', icon: Monitor },
+]
+
+export default function SettingsPanel({ themeMode, onThemeMode, user, stats, siteName }) {
   return (
     <div className="center-panel settings-panel">
       <div className="panel-title"><Settings2 size={18} /> 设置</div>
@@ -8,9 +14,13 @@ export default function SettingsPanel({ theme, onToggleTheme, user, stats, siteN
         <h3>外观</h3>
         <div className="setting-row">
           <span>主题</span>
-          <button className="small" onClick={onToggleTheme}>
-            {theme === 'dark' ? <><Sun size={14} /> 切换到浅色</> : <><Moon size={14} /> 切换到深色</>}
-          </button>
+          <div className="theme-options">
+            {modes.map(({ id, label, icon: Icon }) => (
+              <button key={id} className={`small ${themeMode === id ? 'active' : ''}`} onClick={() => onThemeMode(id)}>
+                <Icon size={14} /> {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="settings-card">

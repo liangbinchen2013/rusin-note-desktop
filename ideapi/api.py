@@ -157,6 +157,107 @@ def search():
     return jsonify({"items": results})
 
 
+def _remote_settings():
+    from cloudsync import settings as sync_settings
+
+    settings = sync_settings.load_settings()
+    if not settings.get("remote_url") or not settings.get("session_cookie"):
+        return None
+    return settings
+
+
+@bp.get("/remote/status")
+def remote_status():
+    from cloudsync import settings as sync_settings
+
+    settings = sync_settings.load_settings()
+    configured = bool(settings.get("remote_url") and settings.get("session_cookie"))
+    return jsonify({
+        "configured": configured,
+        "user": settings.get("remote_user", "") if configured else "",
+        "url": settings.get("remote_url", "") if configured else "",
+    })
+
+
+@bp.get("/remote/notes")
+def remote_notes():
+    from cloudsync import service as sync_service
+
+    settings = _remote_settings()
+    if not settings:
+        return jsonify({"error": "尚未配置云端站点与登录态"}), 400
+    try:
+        return jsonify({"notes": sync_service.remote_note_rows(settings)})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+
+
+@bp.get("/remote/notes/<note_id>")
+def get_remote_note(note_id: str):
+    from cloudsync import service as sync_service
+
+    settings = _remote_settings()
+    if not settings:
+        return jsonify({"error": "尚未配置云端站点与登录态"}), 400
+    try:
+        note = sync_service.make_client(settings).read_note(note_id)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify(note)
+
+
+@bp.post("/remote/notes")
+def create_remote_note():
+    from cloudsync import service as sync_service
+
+    settings = _remote_settings()
+    if not settings:
+        return jsonify({"error": "尚未配置云端站点与登录态"}), 400
+    folder = str((request.get_json(silent=True) or {}).get("folder") or "")
+    try:
+        note_id = sync_service.make_client(settings).create_note(folder)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify({"id": note_id}), 201
+
+
+@bp.put("/remote/notes/<note_id>")
+def save_remote_note(note_id: str):
+    from cloudsync import service as sync_service
+
+    settings = _remote_settings()
+    if not settings:
+        return jsonify({"error": "尚未配置云端站点与登录态"}), 400
+    payload = request.get_json(silent=True) or {}
+    content = payload.get("content")
+    if not isinstance(content, str):
+        return jsonify({"error": "content 必须是字符串"}), 400
+    note_tags = payload.get("tags", [])
+    if isinstance(note_tags, list):
+        note_tags = ",".join(str(tag) for tag in note_tags)
+    try:
+        sync_service.make_client(settings).post_note(
+            note_id, content, str(note_tags or ""), str(payload.get("folder") or ""),
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify({"ok": True})
+
+
+@bp.delete("/remote/notes/<note_id>")
+def delete_remote_note(note_id: str):
+    from cloudsync import service as sync_service
+
+    settings = _remote_settings()
+    if not settings:
+        return jsonify({"error": "尚未配置云端站点与登录态"}), 400
+    try:
+        sync_service.make_client(settings).delete_note(note_id)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify({"ok": True})
+
+
 @bp.get("/sync/status")
 def sync_status():
     from cloudsync import service as sync_service

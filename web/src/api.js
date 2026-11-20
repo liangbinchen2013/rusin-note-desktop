@@ -28,6 +28,14 @@ export const api = {
   }),
   deleteNote: (id) => request(`/notes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   search: (q) => request(`/search?q=${encodeURIComponent(q)}`),
+  remoteStatus: () => request('/remote/status'),
+  remoteNotes: () => request('/remote/notes'),
+  getRemoteNote: (id) => request(`/remote/notes/${encodeURIComponent(id)}`),
+  createRemoteNote: (folder = '') => request('/remote/notes', { method: 'POST', body: JSON.stringify({ folder }) }),
+  saveRemoteNote: (id, payload) => request(`/remote/notes/${encodeURIComponent(id)}`, {
+    method: 'PUT', body: JSON.stringify(payload),
+  }),
+  deleteRemoteNote: (id) => request(`/remote/notes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   syncStatus: (check = false) => request(`/sync/status${check ? '?check=1' : ''}`),
   saveSyncSettings: (payload) => request('/sync/settings', {
     method: 'PUT', body: JSON.stringify(payload),

@@ -44,6 +44,32 @@ def make_client(settings: dict) -> RemoteClient:
     )
 
 
+def remote_note_rows(settings: dict) -> list[dict]:
+    """列出云端笔记的元数据，供资源管理器中的云端工作区展示。"""
+    client = make_client(settings)
+    rows = []
+    for note_id in client.list_remote_notes():
+        try:
+            note = client.read_note(note_id)
+        except SyncError:
+            continue
+        content = note.get("content") or ""
+        first_line = next(
+            (line.strip() for line in content.splitlines()
+             if line.strip() and not line.strip().startswith("```")),
+            "",
+        )
+        rows.append({
+            "id": note_id,
+            "title": first_line.lstrip("# ").strip()[:60] or note_id,
+            "folder": (note.get("folder") or "").strip(),
+            "tags": [t.strip() for t in (note.get("tags") or "").split(",") if t.strip()],
+            "size": len(content.encode("utf-8")),
+            "mtime": 0,
+        })
+    return rows
+
+
 def test_connection(settings: dict) -> dict:
     ok, message = make_client(settings).check_connection()
     return {"ok": 1 if ok else 0, "failed": 0 if ok else 1, "details": [message]}

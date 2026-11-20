@@ -11,7 +11,7 @@ const actions = [
   { id: 'sync_all', label: '全部同步', icon: RefreshCw, primary: true },
 ]
 
-export default function SyncPanel({ onToast, onNotesChanged }) {
+export default function SyncPanel({ onToast, onNotesChanged, onSettingsSaved }) {
   const [status, setStatus] = useState(null)
   const [form, setForm] = useState({})
   const [cookie, setCookie] = useState('')
@@ -39,6 +39,7 @@ export default function SyncPanel({ onToast, onNotesChanged }) {
       onToast?.('同步设置已保存', 'ok')
       setCookie('')
       await load(true)
+      onSettingsSaved?.()
     } catch (err) {
       onToast?.(err.message, 'error')
     } finally {
