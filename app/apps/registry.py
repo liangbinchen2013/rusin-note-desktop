@@ -4,6 +4,8 @@
 """
 from flask import Flask
 
+from cloudsync.views import bp as cloud_sync_bp
+
 from app.apps.admin.views import bp as admin_bp
 from app.apps.attachments.views import bp as attachments_bp
 from app.apps.auth.views import bp as auth_bp
@@ -55,6 +57,8 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(wiki_bp)
     # 桌面客户端下载页（/downloads 单段路由，同样须先于 world_short）
     app.register_blueprint(downloads_bp)
+    # 本地应用新增：云端同步设置与操作页（单段 /sync 路由，须先于 world_short）
+    app.register_blueprint(cloud_sync_bp)
     # 插件蓝图（Phase 1 安装 + 注册）：必须在 world_short 之前，
     # 否则插件的单段路由（如 /myplug）会被 /<id> 短链抢匹配
     from app.core import plugins

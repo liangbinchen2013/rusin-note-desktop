@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+    .sync-card { border: 1px solid var(--card-border); border-radius: 10px; padding: 18px 20px; margin: 16px 0; background: var(--card-bg); }
+    .sync-card h3 { margin: 0 0 12px; font-size: 17px; }
+    .sync-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px; align-items: center; margin: 9px 0; }
+    .sync-row label { font-weight: 600; }
+    .sync-row input[type=text], .sync-row input[type=password], .sync-row input[type=number], .sync-row select { width: 100%; max-width: 520px; box-sizing: border-box; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--input-bg, var(--card-bg)); color: inherit; }
+    .sync-check { display: inline-flex; align-items: center; gap: 7px; margin-right: 18px; }
+    .sync-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .sync-actions button { border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer; color: #fff; background: var(--primary, #4f46e5); font: inherit; }
+    .sync-actions button.secondary { background: var(--muted, #6b7280); }
+    .sync-status { padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; }
+    .sync-status.ok { background: rgba(34,197,94,.12); }
+    .sync-status.bad { background: rgba(239,68,68,.12); }
+    .sync-flash { padding: 9px 12px; border-radius: 7px; margin: 7px 0; font-size: 14px; }
+    .sync-flash.ok { background: rgba(34,197,94,.13); }
+    .sync-flash.error { background: rgba(239,68,68,.13); }
+    .sync-stats { display: flex; flex-wrap: wrap; gap: 18px; color: var(--muted); font-size: 14px; }
+    .sync-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .sync-table th, .sync-table td { padding: 7px 9px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    .sync-note { color: var(--muted); font-size: 13px; line-height: 1.7; }
+    .sync-code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; word-break: break-all; }
+</style>
+{% endblock %}
+{% block content %}
+<h2>云端同步</h2>
+
+{% for category, message in get_flashed_messages(with_categories=true) %}
+<div class="sync-flash {{ category }}">{{ message }}</div>
+{% endfor %}
+
+<div class="sync-card">
+    <h3>连接状态</h3>
+    <div class="sync-status {{ 'ok' if connection_ok else 'bad' }}">{{ connection_message }}</div>
+    <div class="sync-stats">
+        <span>已推送笔记：{{ stats.pushed_notes }}</span>
+        <span>已拉取云端笔记：{{ stats.pulled_notes }}</span>
+        <span>已拉取犇犇：{{ stats.benben_seen }}</span>
+    </div>
+</div>
+
+<div class="sync-card">
+    <h3>同步设置</h3>
+    <form method="POST" action="/sync/settings">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="sync-row">
+            <label for="remote_url">云端地址</label>
+            <input type="text" id="remote_url" name="remote_url" placeholder="https://note.example.com" value="{{ settings.remote_url|e }}" required>
+        </div>
+        <div class="sync-row">
+            <label for="remote_user">云端用户名</label>
+            <input type="text" id="remote_user" name="remote_user" value="{{ settings.remote_user|e }}" required>
+        </div>
+        <div class="sync-row">
+            <label for="session_cookie">登录 Cookie</label>
+            <input type="password" id="session_cookie" name="session_cookie" placeholder="{{ '留空表示沿用已保存的 Cookie' if settings.session_cookie else 'rusin_session 的值' }}" autocomplete="off">
+        </div>
+        <div class="sync-row">
+            <label for="local_user">本地用户名</label>
+            <select id="local_user" name="local_user">
+                <option value="">自动选择（仅一个本地用户时）</option>
+                {% for user in users %}<option value="{{ user|e }}" {% if user == settings.local_user %}selected{% endif %}>{{ user|e }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="sync-row">
+            <label>同步策略</label>
+            <span>
+                <label class="sync-check"><input type="checkbox" name="overwrite_remote" {% if settings.overwrite_remote %}checked{% endif %}>允许覆盖云端同名笔记</label>
+                <label class="sync-check"><input type="checkbox" name="overwrite_local" {% if settings.overwrite_local %}checked{% endif %}>更新本地云端镜像（c- 前缀笔记）</label>
+            </span>
+        </div>
+        <div class="sync-row">
+            <label for="pull_pages">犇犇拉取页数</label>
+            <input type="number" id="pull_pages" name="pull_pages" min="1" max="20" value="{{ settings.pull_pages }}">
+        </div>
+        <div class="sync-row">
+            <label for="request_delay">请求间隔（秒）</label>
+            <input type="text" id="request_delay" name="request_delay" value="{{ settings.request_delay }}">
+        </div>
+        <div class="sync-actions"><button type="submit">保存设置</button></div>
+    </form>
+    <p class="sync-note">
+        登录 Cookie 获取方式：在浏览器登录云端站点 → 开发者工具 → Application / 存储 → Cookie → 复制
+        <span class="sync-code">rusin_session</span> 的值。Cookie 会加密保存在本地 <span class="sync-code">data/sync_settings.json</span>，
+        等同于云端登录态，请不要分享这个文件。同步走站点原有表单 POST，默认慢速增量执行，不改云端源码。
+    </p>
+</div>
+
+<div class="sync-card">
+    <h3>立即同步</h3>
+    <div class="sync-actions">
+        <form method="POST" action="/sync/action/test"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="secondary">测试连接</button></form>
+        <form method="POST" action="/sync/action/pull_benben"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">拉取云端犇犇</button></form>
+        <form method="POST" action="/sync/action/pull_notes"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">拉取云端笔记</button></form>
+        <form method="POST" action="/sync/action/push_notes"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">推送本地笔记</button></form>
+        <form method="POST" action="/sync/action/push_benben"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="secondary">推送本地犇犇</button></form>
+        <form method="POST" action="/sync/action/sync_all"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">全部同步</button></form>
+    </div>
+</div>
+
+<div class="sync-card">
+    <h3>最近记录</h3>
+    {% if runs %}
+    <table class="sync-table">
+        <thead><tr><th>时间</th><th>操作</th><th>结果</th><th>详情</th></tr></thead>
+        <tbody>
+        {% for run in runs %}
+            <tr>
+                <td>{{ run.time }}</td><td>{{ run.action }}</td>
+                <td>成功 {{ run.report.ok }} / 跳过 {{ run.report.skipped }} / 失败 {{ run.report.failed }}</td>
+                <td>{{ run.report.details|join('；') }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}<p class="sync-note">还没有同步记录。</p>{% endif %}
+</div>
+{% endblock %}
