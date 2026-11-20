@@ -1,0 +1,146 @@
+{% from "partials/_nav_attrs.html" import nav_attrs %}
+<div class="navbar">
+    <a class="navbar-brand" href="/" title="Home">
+        <img src="/favicon.ico" alt="" class="navbar-brand-icon">
+        <span class="navbar-brand-name">{{ (site_name or 'rusin-note')|e }}</span>
+    </a>
+    {% if current_user %}
+        {% set av = get_avatar(current_user) %}
+        {% set show_org_menu = feature_enabled('orgs') and not simple_mode %}
+        {# 触发器用 <a role="button"> 而非 <button>：折叠测量会把它临时置为
+           position:absolute，原生 button 此时会撑满导航栏宽度导致永远折叠。 #}
+        {% if show_org_menu %}
+        <a class="user-info" id="orgMenuBtn" href="#orgs" role="button" tabindex="0"
+           aria-haspopup="true" aria-expanded="false" aria-controls="orgMenu"
+           title="{{ t('nav_switch_org') }}">
+            {% if av %}<img class="avatar" src="{{ av|e }}" alt="" width="20" height="20" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+            <span class="user-name">{{ current_user|e }}</span>
+            <i class="fa-solid fa-chevron-down user-caret" aria-hidden="true"></i>
+        </a>
+        <div class="org-menu" id="orgMenu" role="menu" hidden>
+            <div class="org-menu-label">
+                <i class="fa-solid fa-users" aria-hidden="true"></i>{{ t('nav_switch_org') }}
+            </div>
+            <a class="org-menu-item" href="/user/{{ current_user|e }}/">
+                <i class="fa-solid fa-house-user" aria-hidden="true"></i>{{ t('nav_personal_space') }}
+            </a>
+            {% for org in user_orgs %}
+            <a class="org-menu-item" href="/org/{{ org.id|e }}/">
+                <i class="fa-solid fa-people-group" aria-hidden="true"></i><span class="org-menu-org-name">{{ org.name|e }}</span>
+            </a>
+            {% endfor %}
+            <a class="org-menu-item org-menu-manage" href="/org/mine">
+                <i class="fa-solid fa-sliders" aria-hidden="true"></i>{{ t('nav_manage_orgs') }}
+            </a>
+        </div>
+        {% else %}
+        <span class="user-info user-info-static">
+            {% if av %}<img class="avatar" src="{{ av|e }}" alt="" width="20" height="20" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+            <span class="user-name">{{ current_user|e }}</span>
+        </span>
+        {% endif %}
+        <span class="nav-links">
+            <a {{ nav_attrs('/user/' ~ current_user ~ '/', 'nav-link', false, ['/user/' ~ current_user ~ '/settings', '/user/' ~ current_user ~ '/shares/']) |safe }} href="/user/{{ current_user|e }}/"><i class="fa-solid fa-file-lines" aria-hidden="true"></i>{{ t('nav_my_notes') }}</a>
+            <a {{ nav_attrs('/user/' ~ current_user ~ '/new', 'nav-link nav-icon-btn')|safe }} href="/user/{{ current_user|e }}/new" title="{{ t('nav_new_note') }}" aria-label="{{ t('nav_new_note') }}"><i class="fa-solid fa-square-plus" aria-hidden="true"></i><span class="nav-icon-label">{{ t('nav_new_note') }}</span></a>
+            <a {{ nav_attrs('/user/' ~ current_user ~ '/notifications')|safe }} href="/user/{{ current_user|e }}/notifications"><i class="fa-solid fa-bell" aria-hidden="true"></i>{{ t('nav_notifications') }}<span class="notif-badge" id="navNotifBadge" aria-hidden="true" hidden></span></a>
+            <a {{ nav_attrs('/user/' ~ current_user ~ '/settings')|safe }} href="/user/{{ current_user|e }}/settings"><i class="fa-solid fa-gear" aria-hidden="true"></i>{{ t('nav_settings') }}</a>
+            {% if feature_enabled('wiki') %}<a {{ nav_attrs('/docs', 'nav-link', false, ['/admin/wiki'])|safe }} href="/docs"><i class="fa-solid fa-book" aria-hidden="true"></i>{{ t('nav_wiki') }}</a>{% endif %}
+            {% if feature_enabled('downloads') and not simple_mode %}<a {{ nav_attrs('/downloads')|safe }} href="/downloads"><i class="fa-solid fa-desktop" aria-hidden="true"></i>{{ t('nav_downloads') }}</a>{% endif %}
+            <form action="/logout" method="POST" style="display:inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="nav-link-btn"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>{{ t('nav_logout') }}</button>
+            </form>
+        </span>
+    {% else %}
+        <span class="user-info">{{ t('nav_anonymous') }}</span>
+        <span class="nav-links">
+            {% if feature_enabled('open_register') %}<a {{ nav_attrs('/register')|safe }} href="/register"><i class="fa-solid fa-user-plus" aria-hidden="true"></i>{{ t('nav_register') }}</a>{% endif %}
+            <a {{ nav_attrs('/login')|safe }} href="/login"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>{{ t('nav_login') }}</a>
+            {% if feature_enabled('wiki') %}<a {{ nav_attrs('/docs')|safe }} href="/docs"><i class="fa-solid fa-book" aria-hidden="true"></i>{{ t('nav_wiki') }}</a>{% endif %}
+            {% if feature_enabled('downloads') %}<a {{ nav_attrs('/downloads')|safe }} href="/downloads"><i class="fa-solid fa-desktop" aria-hidden="true"></i>{{ t('nav_downloads') }}</a>{% endif %}
+            <a {{ nav_attrs('/count')|safe }} href="/count"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i>{{ t('nav_stats') }}</a>
+            <a {{ nav_attrs('/disclaimer')|safe }} href="/disclaimer"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>{{ t('nav_disclaimer') }}</a>
+        </span>
+        <a href="/login" class="simple-auth-btn"><span class="simple-auth-btn-inner"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i></span></a>
+    {% endif %}
+    <button type="button" id="navMenuBtn" class="nav-menu-btn" onclick="toggleMenu()" title="Menu" aria-label="Menu">
+        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+    </button>
+    <a href="{{ lang_switch_url }}" class="lang-toggle" title="{{ t('lang_switch') }}" aria-label="{{ t('lang_switch') }}">
+        <i class="fa-solid fa-globe" aria-hidden="true"></i>
+        <span>{% if lang == 'zh' %}En{% else %}中{% endif %}</span>
+    </a>
+</div>
+<script>
+(function () {
+    var btn = document.getElementById('orgMenuBtn');
+    var menu = document.getElementById('orgMenu');
+    if (!btn || !menu) return;
+    var closeTimer = null;
+
+    // 组织切换下拉框用 position: fixed 定位，避免被 .navbar 的 overflow: hidden 裁剪。
+    function position() {
+        var rect = btn.getBoundingClientRect();
+        menu.style.top = (rect.bottom + 6) + 'px';
+        var left = rect.left;
+        var width = menu.offsetWidth || 220;
+        var maxLeft = window.innerWidth - width - 8;
+        if (left > maxLeft) left = Math.max(8, maxLeft);
+        menu.style.left = left + 'px';
+    }
+
+    function open() {
+        if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+        if (!menu.hidden && menu.classList.contains('open')) return;
+        menu.hidden = false;
+        position();
+        requestAnimationFrame(function () { menu.classList.add('open'); });
+        btn.setAttribute('aria-expanded', 'true');
+    }
+
+    function close() {
+        menu.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+        closeTimer = setTimeout(function () { menu.hidden = true; closeTimer = null; }, 160);
+    }
+
+    window.toggleOrgMenu = function () {
+        if (menu.hidden) open(); else close();
+    };
+
+    btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        window.toggleOrgMenu();
+    });
+    btn.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            window.toggleOrgMenu();
+        }
+    });
+    document.addEventListener('click', function (e) {
+        if (!menu.hidden && !menu.contains(e.target) && !btn.contains(e.target)) close();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !menu.hidden) { close(); btn.focus(); }
+    });
+    window.addEventListener('resize', function () { if (!menu.hidden) position(); });
+    window.addEventListener('scroll', function () { if (!menu.hidden) position(); }, true);
+})();
+(function () {
+    var badge = document.getElementById('navNotifBadge');
+    if (!badge) return;
+    var username = {{ current_user|tojson }};
+    fetch('/user/' + encodeURIComponent(username) + '/notifications/unread', {
+        headers: { 'Accept': 'application/json' }
+    }).then(function (response) {
+        if (!response.ok) return null;
+        return response.json();
+    }).then(function (data) {
+        var count = data && Number(data.count);
+        if (!count) return;
+        badge.textContent = count > 99 ? '99+' : String(count);
+        badge.hidden = false;
+    }).catch(function () {});
+})();
+</script>

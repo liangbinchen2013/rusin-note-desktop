@@ -1,0 +1,220 @@
+/* ===== 导航栏（base.html 与 note_edit.html 共用，见 partials/_navbar_css.html） ===== */
+        .navbar {
+            background: var(--navbar-bg);
+            padding: 9px 24px;
+            border-bottom: 1px solid var(--navbar-border);
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            gap: 16px;
+            font-size: 14px;
+            overflow: hidden;
+            z-index: 40;
+        }
+        .navbar-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; font-size: 16px; font-weight: 600; flex-shrink: 0; min-width: 0; overflow: hidden; }
+        .navbar-brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .navbar-brand:hover { color: var(--link); }
+        .navbar-brand-icon { width: 22px; height: 22px; border-radius: 4px; flex-shrink: 0; }
+        .navbar .user-info { font-weight: 500; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; max-width: 40vw; margin: 0 auto; color: var(--text); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: none; border: none; font: inherit; cursor: pointer; padding: 6px 10px; border-radius: 999px; transition: background 0.2s ease, color 0.2s ease; }
+        .navbar .user-info:hover { color: var(--link); background: var(--card-bg); }
+        .navbar .user-info .user-name { overflow: hidden; text-overflow: ellipsis; }
+        .user-caret { font-size: 10px; color: var(--muted); flex-shrink: 0; transition: transform 0.22s ease, color 0.2s ease; }
+        .navbar .user-info:hover .user-caret { color: var(--link); }
+        .navbar .user-info[aria-expanded="true"] { color: var(--link); background: var(--card-bg); }
+        .navbar .user-info[aria-expanded="true"] .user-caret { transform: rotate(180deg); }
+        .navbar .user-info-static { cursor: default; }
+        .navbar .user-info-static:hover { color: var(--text); background: none; }
+        .navbar .nav-links { display: flex; justify-content: flex-end; align-items: center; flex-shrink: 0; white-space: nowrap; gap: 2px; }
+        .navbar .nav-links a {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            color: var(--link);
+            text-decoration: none;
+            transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease;
+        }
+        .navbar .nav-links a:hover { background: var(--card-bg); color: var(--text); text-decoration: none; box-shadow: var(--glow-shadow); }
+        .navbar .nav-links a:active { background: var(--card-bg); }
+        /* 当前页面：菜单链接下划线指示（::after 绘制，仅选中项常驻，悬浮不再出现下划线） */
+        .navbar .nav-links a { position: relative; }
+        .navbar .nav-links a::after {
+            content: "";
+            position: absolute;
+            left: 12px; right: 12px; bottom: 2px;
+            height: 2px;
+            border-radius: 2px;
+            background: currentColor;
+            opacity: 0;
+            transform: scaleX(0);
+            transform-origin: center;
+            pointer-events: none;
+            transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.24s ease;
+        }
+        .navbar .nav-links a.active { color: var(--text); }
+        .navbar .nav-links a.active::after { opacity: 1; transform: scaleX(1); }
+        .navbar .nav-links .nav-icon-btn::after { left: 10px; right: 10px; }
+        .navbar .nav-links i { font-size: 13px; }
+        .navbar .nav-links .notif-badge {
+            min-width: 17px; height: 17px; padding: 0 5px; margin-left: 5px;
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 999px; background: var(--error); color: #fff;
+            font-size: 10px; font-weight: 700; line-height: 1;
+        }
+        .navbar .nav-links .notif-badge[hidden] { display: none; }
+        /* 图标入口（新建笔记 / 分享管理）：文字常显，无悬浮展开动效（悬浮只发光） */
+        .navbar .nav-links .nav-icon-btn { gap: 6px; padding: 6px 12px; }
+        .navbar .nav-links .nav-icon-btn .nav-icon-label {
+            max-width: none;
+            margin-left: 0;
+            opacity: 1;
+            overflow: visible;
+            white-space: nowrap;
+        }
+        /* 组织切换下拉框：position: fixed，避免被 .navbar 的 overflow: hidden 裁剪 */
+        .org-menu {
+            position: fixed;
+            z-index: 60;
+            min-width: 208px;
+            max-width: min(280px, calc(100vw - 24px));
+            max-height: calc(100vh - 72px);
+            overflow-y: auto;
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+            opacity: 0;
+            transform: translateY(-6px) scale(0.98);
+            transform-origin: top center;
+            transition: opacity 0.16s ease, transform 0.16s ease;
+        }
+        .org-menu[hidden] { display: none; }
+        .org-menu.open { opacity: 1; transform: none; }
+        .org-menu-label { display: flex; align-items: center; gap: 8px; padding: 9px 12px 3px; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+        .org-menu-label i { font-size: 11px; }
+        .org-menu-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px;
+            border-radius: 8px;
+            color: var(--text);
+            text-decoration: none;
+            font-size: 14px;
+            transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+        }
+        .org-menu-item i { width: 16px; text-align: center; color: var(--muted); transition: color 0.16s ease; flex-shrink: 0; }
+        .org-menu-item:hover { background: var(--bg); color: var(--link); box-shadow: var(--glow-shadow); }
+        .org-menu-item:hover i { color: var(--link); }
+        .org-menu-org-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .org-menu-manage { color: var(--muted); font-size: 13px; }
+        .nav-link-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            width: auto;
+            padding: 6px 12px;
+            border-radius: 999px;
+            color: var(--link);
+            text-decoration: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font: inherit;
+            transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease;
+        }
+        .nav-link-btn:hover { background: var(--card-bg); color: var(--text); text-decoration: none; }
+        .nav-link-btn:active { background: var(--card-bg); }
+        .avatar { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; vertical-align: middle; flex-shrink: 0; }
+        .navbar .user-info .avatar { margin-right: 6px; }
+        .nav-menu-btn {
+            width: 36px; height: 36px;
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0; font-size: 15px;
+            border-radius: 8px;
+            background: var(--bg);
+            border: 1px solid var(--navbar-border);
+            color: var(--text);
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+        .nav-menu-btn:hover { background: var(--card-bg); }
+        .lang-toggle {
+            display: inline-flex; align-items: center; gap: 6px;
+            height: 36px; padding: 0 10px;
+            border-radius: 8px;
+            background: var(--bg);
+            border: 1px solid var(--navbar-border);
+            color: var(--text);
+            text-decoration: none;
+            cursor: pointer;
+            flex-shrink: 0;
+            font-size: 15px;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+        .lang-toggle:hover { background: var(--card-bg); }
+        .lang-toggle .fa-globe { font-size: 15px; }
+        .nav-menu-btn { display: none; }
+        .navbar.menu-collapsed { flex-wrap: wrap; }
+        .navbar.menu-collapsed .nav-menu-btn { display: inline-flex; }
+        .navbar.menu-collapsed .nav-links {
+            order: 10;
+            flex-basis: 100%;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0;
+            white-space: normal;
+            display: none;
+        }
+        .navbar.menu-collapsed .nav-links a {
+            margin-left: 0; padding: 10px 0;
+            border-bottom: 1px solid var(--navbar-border);
+            border-radius: 0;
+            justify-content: flex-start;
+        }
+        .navbar.menu-collapsed .nav-links a:hover { background: var(--card-bg); color: var(--text); }
+        .navbar.menu-collapsed .nav-links a:active { transform: none; }
+        .navbar.menu-collapsed .nav-links a:last-child { border-bottom: none; }
+        /* 折叠菜单为纵向列表：下划线改为左侧竖条，避免与分隔线重叠 */
+        .navbar.menu-collapsed .nav-links a::after { display: none; }
+        .navbar.menu-collapsed .nav-links a.active { box-shadow: inset 3px 0 0 var(--link); }
+        .navbar.menu-collapsed .nav-links .nav-icon-btn .nav-icon-label {
+            max-width: none; margin-left: 0; opacity: 1;
+        }
+        .navbar.menu-collapsed.menu-open .nav-links {
+            display: flex;
+            background: var(--bg);
+            border: 1px solid var(--navbar-border);
+            border-radius: 8px;
+            padding: 6px 16px;
+            margin-top: 2px;
+        }
+        /* 简洁模式：顶栏仅保留必要入口（我的笔记/新建/设置/登出），账号抽屉已移除 */
+        .simple-mode .navbar { padding: 7px 24px; }
+        /* 匿名用户在简洁模式下无登录入口时，保留登录快捷入口 */
+        .simple-mode .simple-auth-btn { display: inline-flex !important; }
+        .simple-auth-btn { display: none; }
+        .simple-auth-btn-inner {
+            width: 36px; height: 36px;
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0; font-size: 15px;
+            border-radius: 8px;
+            background: var(--bg);
+            border: 1px solid var(--navbar-border);
+            color: var(--link);
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+        .simple-auth-btn-inner:hover { background: var(--card-bg); }
+        @media (max-width: 640px) {
+            .navbar { gap: 12px; padding: 10px 16px; }
+            .navbar-brand-name { max-width: 45vw; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .navbar .nav-links .nav-icon-btn .nav-icon-label,
+            .org-menu, .user-caret { transition: none; }
+            .navbar .nav-links a::after { transition: none; }
+            .navbar .nav-links a:hover { transform: none; }
+            .org-menu-item:hover { transform: none; }
+        }

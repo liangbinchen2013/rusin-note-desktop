@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html{% if simple_mode %} class="simple-mode"{% endif %} lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ full_title|e }}</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="preload" href="{{ url_for('static', filename='vendor/fontawesome/webfonts/fa-solid-900.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ url_for('static', filename='vendor/fontawesome/webfonts/fa-brands-400.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/vditor/index.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='editor/markdown-editor.css') }}">
+    <script>
+        window.RUSIN_EDITOR_CONFIG = {{ {
+            'assetBase': url_for('static', filename='vendor/vditor'),
+            'lang': lang,
+            'placeholder': t('note_content_placeholder'),
+            'imagesApi': note_images_api or '',
+            'noteRefs': note_refs or none,
+            'l10n': {
+                'sourceMode': t('note_source_mode'),
+                'richMode': t('note_rich_mode')
+            }
+        }|tojson }};
+    </script>
+    <script defer src="{{ url_for('static', filename='vendor/vditor/index.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='editor/markdown-editor.js') }}"></script>
+    <style>
+        {{ theme_vars|safe }}
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: var(--bg); color: var(--text); height: 100vh; height: 100dvh; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        {% include "partials/_navbar_css.html" %}
+        {% include "partials/_page_transition_css.html" %}
+        .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 30; }
+        .editor-shell { position: fixed; inset: 0; padding-top: calc(var(--nav-h, 50px) + 8px); display: flex; }
+        .pane { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; }
+        .pane-header { height: 38px; padding: 0 16px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--navbar-border); background: var(--navbar-bg); text-transform: uppercase; letter-spacing: .5px; flex: 0 0 auto; display: flex; align-items: center; }
+        .editor-header { justify-content: space-between; gap: 12px; }
+        #noteForm { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+        .md-manual { color: var(--link); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: 0; }
+        .md-manual:hover { text-decoration: underline; }
+        .floating-rail { position: fixed; bottom: 24px; right: 24px; z-index: 10; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 10px; }
+        .save-btn, .attachment-btn { background: var(--btn-bg); border: 1px solid var(--navbar-border); padding: 8px 20px; border-radius: 20px; font-size: 14px; color: var(--text); cursor: pointer; backdrop-filter: blur(4px); transition: all .2s; font-weight: 500; text-decoration: none; }
+        .save-btn:hover, .attachment-btn:hover { background: var(--btn-hover); box-shadow: var(--glow-shadow); border-color: var(--glow-ring); }
+        .save-btn:active, .attachment-btn:active { background: var(--border); }
+        .note-delete-form { margin: 0; }
+        .note-delete-btn { width: 38px; height: 38px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: var(--btn-bg); border: 1px solid var(--navbar-border); border-radius: 50%; font-size: 15px; color: var(--error); cursor: pointer; backdrop-filter: blur(4px); transition: all .2s; }
+        .note-delete-btn:hover { background: var(--btn-hover); border-color: var(--error); box-shadow: var(--glow-shadow); }
+        .save-hint { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.75); color: #fff; padding: 10px 24px; border-radius: 24px; font-size: 14px; letter-spacing: .5px; backdrop-filter: blur(8px); opacity: 0; transition: opacity .4s, transform .4s; pointer-events: none; z-index: 45; box-shadow: 0 4px 20px rgba(0,0,0,.2); }
+        .save-hint.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .save-hint kbd { background: rgba(255,255,255,.2); padding: 2px 12px; border-radius: 6px; margin: 0 4px; font-size: 13px; border: 1px solid rgba(255,255,255,.15); font-family: inherit; }
+        .save-status { position: absolute; bottom: 100%; right: 0; margin-bottom: 6px; font-size: 14px; color: #4CAF50; opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; background: var(--status-bg); padding: 6px 18px; border-radius: 16px; border: 1px solid #4CAF50; box-shadow: 0 2px 12px rgba(0,0,0,.08); transform: translateY(10px); white-space: nowrap; }
+        .save-status.show { opacity: 1; transform: translateY(0); }
+        .save-status.saving { color: #ff9800; border-color: #ff9800; }
+        .save-status.error { color: #f44336; border-color: #f44336; }
+        .note-mtime { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--muted); z-index: 10; user-select: none; }
+        .tag-bar { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 120px 8px 20px; border-top: 1px solid var(--navbar-border); background: var(--navbar-bg); }
+        .tag-bar .tag-icon { color: var(--muted); font-size: 13px; flex-shrink: 0; }
+        .tag-bar .tag-label { font-size: 12px; color: var(--muted); flex-shrink: 0; text-transform: uppercase; letter-spacing: .5px; }
+        .tag-bar input { flex: 1; min-width: 120px; border: none; outline: none; background: transparent; color: var(--text); font-size: 14px; font-family: inherit; }
+        .tag-bar input::placeholder { color: var(--muted); opacity: .8; }
+        .tag-bar .meta-divider { width: 1px; align-self: stretch; background: var(--navbar-border); flex-shrink: 0; }
+        .ref-popover { position: fixed; z-index: 40; min-width: min(280px, calc(100vw - 16px)); max-width: min(380px, calc(100vw - 16px)); background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); overflow: hidden; display: none; }
+        .ref-popover.show { display: block; }
+        .ref-popover .ref-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 12px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--navbar-bg); }
+        .ref-popover .ref-head .ref-scope { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ref-list { max-height: 236px; overflow-y: auto; }
+        .ref-item { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; font-size: 14px; }
+        .ref-item .ref-id { color: var(--link); font-weight: 600; white-space: nowrap; }
+        .ref-item .ref-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+        .ref-item .ref-title.empty { color: var(--muted); font-style: italic; }
+        .ref-item .ref-time { font-size: 11px; color: var(--muted); white-space: nowrap; }
+        .ref-item:hover, .ref-item.active { background: var(--btn-hover); }
+        .ref-empty { padding: 10px 12px; font-size: 13px; color: var(--muted); }
+        .ref-caret-mirror { position: absolute; top: 0; left: -9999px; visibility: hidden; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; z-index: -1; }
+        {% include "partials/_markdown_alerts_css.html" %}
+        @media (max-width: 640px) {
+            .navbar { gap: 12px; padding: 10px 16px; }
+            .navbar-brand-name { max-width: 45vw; }
+            .floating-rail { bottom: 16px; right: 16px; gap: 8px; }
+            .save-btn, .attachment-btn { padding: 6px 16px; font-size: 13px; }
+            .note-delete-btn { width: 34px; height: 34px; font-size: 14px; }
+            .save-hint { bottom: 70px; padding: 8px 16px; font-size: 12px; white-space: nowrap; }
+            .save-status { margin-bottom: 4px; font-size: 12px; padding: 4px 14px; }
+            .note-mtime { bottom: 16px; font-size: 11px; }
+            .tag-bar { padding: 8px 96px 8px 14px; gap: 6px; }
+            .tag-bar input { min-width: 0; flex: 1 1 80px; }
+        }
+        @media (max-width: 480px) {
+            .note-mtime { display: none; }
+            .save-hint { white-space: normal; max-width: calc(100vw - 24px); text-align: center; }
+        }
+        .simple-mode .tag-bar, .simple-mode .editor-header, .simple-mode .attachment-btn,
+        .simple-mode #commentBtn, .simple-mode .navbar-brand, .simple-mode .note-mtime { display: none !important; }
+    </style>
+    <style>{% include "partials/_card_theme_css.html" %}</style>
+    <style>{% include "partials/_responsive_css.html" %}</style>
+</head>
+<body>
+    {% include "partials/_navbar.html" %}
+    <main class="editor-shell" id="editorShell">
+        <section class="pane editor-pane" aria-label="{{ t('note_editor_label') }}">
+            <div class="pane-header editor-header">
+                <span>{{ t('note_editor_label') }}</span>
+                <div class="editor-header-actions">
+                    {% if md_manual_url %}<a class="md-manual" href="{{ md_manual_url|e }}" target="_blank" rel="noopener noreferrer">{{ t('md_manual') }}</a>{% endif %}
+                    <button type="button" class="editor-mode-btn" id="editorModeToggle" aria-pressed="false" hidden>{{ t('note_source_mode') }}</button>
+                </div>
+            </div>
+            <form method="POST" action="{{ action_url }}" id="noteForm" data-editor-mode="source">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div id="richTextEditor" aria-label="{{ t('note_rich_mode') }}"></div>
+                <textarea name="content" id="noteContent" autofocus spellcheck="true" placeholder="{{ t('note_content_placeholder') }}">{{ content|e }}</textarea>
+                {% if note_tags_enabled or note_folders_enabled %}
+                <div class="tag-bar" id="tagBar">
+                    {% if note_tags_enabled %}
+                    <i class="fa-solid fa-tags tag-icon" aria-hidden="true"></i>
+                    <label class="tag-label" for="noteTags">{{ t('note_tags_label') }}</label>
+                    <input type="text" name="tags" id="noteTags" autocomplete="off" spellcheck="false" placeholder="{{ t('note_tags_placeholder') }}" maxlength="250" value="{{ note_tags_value|e }}">
+                    {% endif %}
+                    {% if note_tags_enabled and note_folders_enabled %}<span class="meta-divider" aria-hidden="true"></span>{% endif %}
+                    {% if note_folders_enabled %}
+                    <i class="fa-solid fa-folder tag-icon" aria-hidden="true"></i>
+                    <label class="tag-label" for="noteFolder">{{ t('note_folders_label') }}</label>
+                    <input type="text" name="folder" id="noteFolder" autocomplete="off" spellcheck="false" list="folderOptions" placeholder="{{ t('note_folders_placeholder') }}" maxlength="64" value="{{ note_folder_value|e }}">
+                    <datalist id="folderOptions">{% for f in folder_options %}<option value="{{ f|e }}"></option>{% endfor %}</datalist>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </form>
+        </section>
+    </main>
+    {% if note_attachments_api %}<input type="file" id="attachmentInput" style="display:none" multiple>{% endif %}
+    <div class="floating-rail">
+        <div class="save-status" id="saveStatus" role="status" aria-live="polite"></div>
+        <button type="button" class="save-btn" id="saveBtn">{{ t('note_save_btn') }}</button>
+        {% if note_attachments_api %}
+        <button type="button" class="attachment-btn" id="attachmentBtn"><i class="fa-solid fa-paperclip" aria-hidden="true"></i> {{ t('note_attachment_btn') }}</button>
+        {% endif %}
+        {% if comment_url %}<a href="{{ comment_url }}" class="attachment-btn" id="commentBtn"><i class="fa-solid fa-comments" aria-hidden="true"></i> {{ t('comments_title') }}</a>{% endif %}
+        {% if note_delete_url %}
+        <form method="POST" action="{{ note_delete_url|e }}" class="note-delete-form" id="noteDeleteForm" data-confirm="{{ t('note_delete_confirm')|e }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="note-delete-btn" title="{{ t('note_delete') }}" aria-label="{{ t('note_delete') }}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>
+        </form>
+        {% endif %}
+    </div>
+    {% if note_delete_url %}
+    <script>
+        (function () {
+            var form = document.getElementById('noteDeleteForm');
+            form.addEventListener('submit', function (event) {
+                if (!window.confirm(form.getAttribute('data-confirm') || '')) event.preventDefault();
+            });
+        })();
+    </script>
+    {% endif %}
+    <div class="save-hint" id="saveHint">{{ hint_text|safe }}</div>
+    <div class="note-mtime">{{ last_edited }}</div>
+    {% if note_refs %}
+    <div class="ref-popover" id="refPopover" role="listbox" aria-label="{{ t('note_refs_label') }}">
+        <div class="ref-head"><span>{{ t('note_refs_label') }}</span><span class="ref-scope" id="refScope"></span></div>
+        <div class="ref-list" id="refList"></div>
+    </div>
+    {% endif %}
+    <script>
+        (function () {
+            var GAP = 16;
+            function updateMenuState() {
+                var navbar = document.querySelector('.navbar');
+                var links = document.querySelector('.nav-links');
+                var menuBtn = document.querySelector('.nav-menu-btn');
+                var brand = document.querySelector('.navbar-brand');
+                var user = document.querySelector('.user-info');
+                var lang = document.querySelector('.lang-toggle');
+                if (!navbar || !links || !menuBtn || !brand) return;
+                var wasOpen = navbar.classList.contains('menu-open');
+                navbar.classList.remove('menu-collapsed', 'menu-open');
+                navbar.classList.add('measuring');
+                [links, user].forEach(function (el) {
+                    if (!el) return;
+                    el.style.position = 'absolute';
+                    el.style.visibility = 'hidden';
+                    el.style.whiteSpace = 'nowrap';
+                });
+                if (user) user.style.flex = 'none';
+                var total = brand.offsetWidth + links.scrollWidth + (user ? user.scrollWidth : 0) + (lang ? lang.offsetWidth : 0) + menuBtn.offsetWidth + GAP * 3;
+                [links, user].forEach(function (el) {
+                    if (!el) return;
+                    el.style.position = '';
+                    el.style.visibility = '';
+                    el.style.whiteSpace = '';
+                });
+                if (user) user.style.flex = '';
+                navbar.classList.remove('measuring');
+                if (total > navbar.clientWidth) {
+                    navbar.classList.add('menu-collapsed');
+                    if (wasOpen) navbar.classList.add('menu-open');
+                }
+                document.documentElement.style.setProperty('--nav-h', navbar.offsetHeight + 'px');
+            }
+            window.toggleMenu = function () {
+                var navbar = document.querySelector('.navbar');
+                var menuBtn = document.querySelector('.nav-menu-btn');
+                var open = navbar.classList.toggle('menu-open');
+                menuBtn.innerHTML = open ? '<i class="fa-solid fa-xmark" aria-hidden="true"></i>' : '<i class="fa-solid fa-bars" aria-hidden="true"></i>';
+            };
+            window.addEventListener('load', updateMenuState);
+            window.addEventListener('resize', updateMenuState);
+            updateMenuState();
+        })();
+    </script>
+    <script>
+        (function () {
+            const form = document.getElementById('noteForm');
+            const textarea = document.getElementById('noteContent');
+            const tagsInput = document.getElementById('noteTags');
+            const folderInput = document.getElementById('noteFolder');
+            const saveBtn = document.getElementById('saveBtn');
+            const saveHint = document.getElementById('saveHint');
+            const saveStatus = document.getElementById('saveStatus');
+            const DEFAULT_HINT = {{ hint_text|tojson }};
+            const L10N = {{ l10n|tojson }};
+            const CSRF_FIELD = 'csrf_token';
+            const IMAGES_API = {{ (note_images_api or '')|tojson }};
+            const ATTACHMENTS_API = {{ (note_attachments_api or '')|tojson }};
+            let saveTimeout = null;
+            let statusTimeout = null;
+            let hintTimeout = null;
+            let isSaving = false;
+            let inputTimer = null;
+
+            function showHint(message, trustedHTML) {
+                if (message) {
+                    if (trustedHTML) saveHint.innerHTML = message;
+                    else saveHint.textContent = message;
+                }
+                saveHint.classList.add('show');
+                clearTimeout(hintTimeout);
+                hintTimeout = setTimeout(function () { saveHint.classList.remove('show'); }, 4000);
+            }
+
+            function showStatus(message, type) {
+                saveStatus.textContent = message;
+                saveStatus.className = 'save-status show';
+                if (type) saveStatus.classList.add(type);
+                clearTimeout(statusTimeout);
+                statusTimeout = setTimeout(function () { saveStatus.classList.remove('show'); }, 2500);
+            }
+
+            function insertAtCursor(text) {
+                if (window.RusinMarkdownEditor && window.RusinMarkdownEditor.isRich()) {
+                    window.RusinMarkdownEditor.insertValue('\n\n' + text + '\n\n');
+                    return;
+                }
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const before = textarea.value.slice(0, start);
+                const after = textarea.value.slice(end);
+                const pad = before && !before.endsWith('\n') ? '\n\n' : '';
+                textarea.value = before + pad + text + '\n' + after;
+                const caret = (before + pad + text).length;
+                textarea.focus();
+                textarea.selectionStart = textarea.selectionEnd = caret;
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            function altName(file) {
+                return (file && file.name ? file.name : 'image').replace(/\.(png|jpe?g|gif|webp)$/i, '').replace(/[\[\]]/g, '').slice(0, 60) || 'image';
+            }
+
+            function uploadImage(file) {
+                if (!IMAGES_API) return Promise.reject(new Error('Image upload is disabled'));
+                showStatus(L10N.imgUploading, 'saving');
+                const fd = new FormData();
+                fd.append('file', file, file.name || 'image');
+                fd.append(CSRF_FIELD, form.querySelector('input[name="' + CSRF_FIELD + '"]').value);
+                return fetch(IMAGES_API, { method: 'POST', body: fd }).then(function (response) {
+                    return response.json().then(function (data) {
+                        if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+                        return data;
+                    });
+                }).then(function (data) {
+                    insertAtCursor('![' + altName(file) + '](' + data.url + ')');
+                    showStatus(L10N.imgDone, '');
+                    showHint(L10N.imgDone, false);
+                    return data;
+                }).catch(function (error) {
+                    showStatus(L10N.imgFailed, 'error');
+                    showHint(error.message, false);
+                    throw error;
+                });
+            }
+            window.RusinNoteUploadImage = uploadImage;
+
+            function pickImage(files) {
+                if (!files || !files.length) return null;
+                for (let i = 0; i < files.length; i++) {
+                    if (files[i].type && files[i].type.indexOf('image/') === 0) return files[i];
+                }
+                return null;
+            }
+
+            textarea.addEventListener('paste', function (event) {
+                if (!IMAGES_API) return;
+                const image = pickImage(event.clipboardData && event.clipboardData.files);
+                if (!image) return;
+                event.preventDefault();
+                uploadImage(image).catch(function () {});
+            });
+            ['dragover', 'dragenter'].forEach(function (name) {
+                textarea.addEventListener(name, function (event) { event.preventDefault(); });
+            });
+            textarea.addEventListener('drop', function (event) {
+                if (!IMAGES_API) return;
+                const image = pickImage(event.dataTransfer && event.dataTransfer.files);
+                if (!image) return;
+                event.preventDefault();
+                uploadImage(image).catch(function () {});
+            });
+
+            function uploadAttachment(file) {
+                if (!ATTACHMENTS_API) return;
+                showStatus(L10N.attUploading, 'saving');
+                const fd = new FormData();
+                fd.append('file', file, file.name || 'file');
+                fd.append(CSRF_FIELD, form.querySelector('input[name="' + CSRF_FIELD + '"]').value);
+                fd.append('content', window.RusinMarkdownEditor ? window.RusinMarkdownEditor.sync() : textarea.value);
+                fetch(ATTACHMENTS_API, { method: 'POST', body: fd }).then(function (response) {
+                    return response.json().then(function (data) {
+                        if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+                        return data;
+                    });
+                }).then(function (data) {
+                    insertAtCursor('[' + data.name + '](' + data.url + ')');
+                    showStatus(L10N.attDone, '');
+                    showHint(L10N.attDone, false);
+                }).catch(function (error) {
+                    showStatus(L10N.attFailed, 'error');
+                    showHint(error.message, false);
+                });
+            }
+
+            textarea.addEventListener('keydown', function (event) {
+                if (event.key !== 'Tab') return;
+                event.preventDefault();
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                textarea.value = textarea.value.slice(0, start) + '    ' + textarea.value.slice(end);
+                textarea.selectionStart = textarea.selectionEnd = start + 4;
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+            textarea.addEventListener('input', function () {
+                clearTimeout(inputTimer);
+                inputTimer = setTimeout(function () { showHint(DEFAULT_HINT, true); }, 3000);
+            });
+            textarea.addEventListener('focus', function () { showHint(DEFAULT_HINT, true); });
+
+            document.addEventListener('keydown', function (event) {
+                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+                    event.preventDefault();
+                    saveNote();
+                }
+                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p' && window.RusinMarkdownEditor) {
+                    event.preventDefault();
+                    window.RusinMarkdownEditor.toggleMode();
+                }
+                if (event.key === 'Escape') {
+                    saveHint.classList.remove('show');
+                    saveStatus.classList.remove('show');
+                }
+            });
+
+            const attachmentBtn = document.getElementById('attachmentBtn');
+            const attachmentInput = document.getElementById('attachmentInput');
+            if (attachmentBtn && attachmentInput) {
+                attachmentBtn.addEventListener('click', function () { attachmentInput.click(); });
+                attachmentInput.addEventListener('change', function () {
+                    Array.from(attachmentInput.files || []).forEach(uploadAttachment);
+                    attachmentInput.value = '';
+                });
+            }
+
+            saveBtn.addEventListener('click', saveNote);
+            function saveNote() {
+                if (isSaving) return;
+                isSaving = true;
+                showStatus(L10N.saving, 'saving');
+                const content = window.RusinMarkdownEditor ? window.RusinMarkdownEditor.sync() : textarea.value;
+                const csrfValue = form.querySelector('input[name="' + CSRF_FIELD + '"]').value;
+                let body = 'content=' + encodeURIComponent(content) + '&' + CSRF_FIELD + '=' + encodeURIComponent(csrfValue);
+                if (tagsInput) body += '&tags=' + encodeURIComponent(tagsInput.value);
+                if (folderInput) body += '&folder=' + encodeURIComponent(folderInput.value);
+                fetch(window.location.href, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body
+                }).then(function (response) {
+                    if (response.ok) {
+                        isSaving = false;
+                        showStatus(L10N.saved, '');
+                        showHint(L10N.savedHint, true);
+                        return null;
+                    }
+                    return response.json().catch(function () { return {}; }).then(function (data) {
+                        isSaving = false;
+                        showStatus(L10N.failedStatus.replace('{status}', response.status), 'error');
+                        showHint(data.error || L10N.retryHint, false);
+                    });
+                }).catch(function (error) {
+                    isSaving = false;
+                    showStatus(L10N.netError, 'error');
+                    showHint(L10N.failedMsg + error.message, false);
+                });
+            }
+
+            setTimeout(function () { showHint(DEFAULT_HINT, true); }, 600);
+        })();
+    </script>
+    <script>
+        (function () {
+            const REFS = {{ (note_refs or none)|tojson }};
+            const L10N = {{ l10n|tojson }};
+            const textarea = document.getElementById('noteContent');
+            const popover = document.getElementById('refPopover');
+            if (!REFS || !popover) return;
+
+            const TOKEN_RE = /(?:^|[\s*_~>（(「【\[<"'，。；：、！？])(#[A-Za-z0-9_\-]*)$/;
+            let items = [];
+            let activeIndex = 0;
+            let tokenStart = -1;
+            let fetchTimer = null;
+            let fetchSeq = 0;
+            let lastTokenKey = null;
+            let suppressedStart = -2;
+            const queryCache = new Map();
+
+            function currentToken() {
+                const pos = textarea.selectionStart;
+                if (pos !== textarea.selectionEnd) return null;
+                const match = TOKEN_RE.exec(textarea.value.slice(0, pos));
+                if (!match) return null;
+                return { start: pos - match[1].length, query: match[1].slice(1) };
+            }
+
+            let mirror = null;
+            function caretCoords() {
+                if (!mirror) {
+                    mirror = document.createElement('div');
+                    mirror.className = 'ref-caret-mirror';
+                    document.body.appendChild(mirror);
+                    const style = getComputedStyle(textarea);
+                    ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'boxSizing', 'width', 'textIndent'].forEach(function (property) {
+                        mirror.style[property] = style[property];
+                    });
+                }
+                mirror.textContent = textarea.value.slice(0, textarea.selectionStart);
+                const marker = document.createElement('span');
+                marker.textContent = '\u200b';
+                mirror.appendChild(marker);
+                const base = mirror.getBoundingClientRect();
+                const markerRect = marker.getBoundingClientRect();
+                const textareaRect = textarea.getBoundingClientRect();
+                return {
+                    top: textareaRect.top + markerRect.top - base.top - textarea.scrollTop,
+                    left: textareaRect.left + markerRect.left - base.left - textarea.scrollLeft
+                };
+            }
+
+            function positionPopover() {
+                const coords = caretCoords();
+                const width = popover.offsetWidth || 300;
+                let left = Math.max(8, Math.min(coords.left, window.innerWidth - width - 8));
+                let top = coords.top + 22;
+                if (top + 280 > window.innerHeight) top = Math.max(8, coords.top - 258);
+                popover.style.left = left + 'px';
+                popover.style.top = top + 'px';
+            }
+
+            function highlight() {
+                const rows = popover.querySelectorAll('.ref-item');
+                rows.forEach(function (row, index) { row.classList.toggle('active', index === activeIndex); });
+                if (rows[activeIndex]) rows[activeIndex].scrollIntoView({ block: 'nearest' });
+            }
+
+            function renderItems(list, query) {
+                items = list;
+                activeIndex = 0;
+                document.getElementById('refScope').textContent = query ? '#' + query : L10N.refRecent;
+                const box = document.getElementById('refList');
+                box.textContent = '';
+                if (!list.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'ref-empty';
+                    empty.textContent = L10N.refNoMatch;
+                    box.appendChild(empty);
+                    return;
+                }
+                list.forEach(function (item, index) {
+                    const row = document.createElement('div');
+                    row.className = 'ref-item';
+                    row.setAttribute('role', 'option');
+                    const id = document.createElement('span');
+                    id.className = 'ref-id';
+                    id.textContent = '#' + item.id;
+                    const title = document.createElement('span');
+                    title.className = 'ref-title' + (item.title ? '' : ' empty');
+                    title.textContent = item.title || '—';
+                    const time = document.createElement('span');
+                    time.className = 'ref-time';
+                    time.textContent = item.mtime ? new Date(item.mtime * 1000).toLocaleDateString() : '';
+                    row.appendChild(id);
+                    row.appendChild(title);
+                    row.appendChild(time);
+                    row.addEventListener('mousedown', function (event) { event.preventDefault(); choose(index); });
+                    box.appendChild(row);
+                });
+                highlight();
+            }
+
+            function loadQuery(query) {
+                if (queryCache.has(query)) { renderItems(queryCache.get(query), query); return; }
+                clearTimeout(fetchTimer);
+                fetchTimer = setTimeout(function () {
+                    const sequence = ++fetchSeq;
+                    fetch(REFS.api + '?q=' + encodeURIComponent(query), { headers: { 'Accept': 'application/json' } }).then(function (response) {
+                        if (!response.ok) throw new Error(response.status);
+                        return response.json();
+                    }).then(function (data) {
+                        if (sequence !== fetchSeq) return;
+                        const list = (data && data.items) || [];
+                        if (queryCache.size > 60) queryCache.clear();
+                        queryCache.set(query, list);
+                        renderItems(list, query);
+                    }).catch(function () {});
+                }, 200);
+            }
+
+            function hide() {
+                popover.classList.remove('show');
+                clearTimeout(fetchTimer);
+                fetchSeq++;
+                lastTokenKey = null;
+            }
+
+            function isOpen() { return popover.classList.contains('show'); }
+
+            function update(fromInput) {
+                const token = currentToken();
+                if (!token) { hide(); return; }
+                if (suppressedStart === token.start && !fromInput) return;
+                const key = token.start + ':' + token.query;
+                if (isOpen() && key === lastTokenKey) return;
+                suppressedStart = -2;
+                lastTokenKey = key;
+                tokenStart = token.start;
+                popover.classList.add('show');
+                positionPopover();
+                loadQuery(token.query);
+            }
+
+            function choose(index) {
+                const item = items[index];
+                if (!item) return;
+                const end = textarea.selectionStart;
+                const rest = /^[A-Za-z0-9_\-]*/.exec(textarea.value.slice(end));
+                const insert = '#' + item.id + ' ';
+                textarea.value = textarea.value.slice(0, tokenStart) + insert + textarea.value.slice(end + (rest ? rest[0].length : 0));
+                textarea.focus();
+                textarea.selectionStart = textarea.selectionEnd = tokenStart + insert.length;
+                hide();
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            document.addEventListener('keydown', function (event) {
+                if (!isOpen() || document.activeElement !== textarea || event.isComposing) return;
+                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (!items.length) return;
+                    activeIndex = (activeIndex + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length;
+                    highlight();
+                } else if (event.key === 'Enter' || event.key === 'Tab') {
+                    if (!items.length) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    choose(activeIndex);
+                } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    suppressedStart = tokenStart;
+                    hide();
+                }
+            }, true);
+            ['input', 'click', 'keyup'].forEach(function (name) {
+                textarea.addEventListener(name, function () { update(name !== 'keyup'); });
+            });
+            textarea.addEventListener('focus', update);
+            textarea.addEventListener('blur', hide);
+            textarea.addEventListener('scroll', hide);
+        })();
+    </script>
+</body>
+</html>

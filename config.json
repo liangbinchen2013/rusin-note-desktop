@@ -1,0 +1,294 @@
+{
+  "max_note_size_kb": 512,
+  "sitename": "如形の笔记",
+  "rate_limit": {
+    "window_seconds": 60,
+    "max_requests": 30
+  },
+  "get_rate_limit": {
+    "window_seconds": 60,
+    "max_requests": 45
+  },
+  "save_rate_limit": {
+    "window_seconds": 60,
+    "max_requests": 120
+  },
+  "register_rate_limit": {
+    "window_seconds": 5,
+    "max_requests": 2
+  },
+  "ip_rate_limit": {
+    "window_seconds": 60,
+    "max_requests": 300
+  },
+  "todos": {
+    "max_items": 100,
+    "max_length": 200
+  },
+  "trust_proxy_headers": true,
+  "trusted_proxies": [
+    "loopback",
+    "private"
+  ],
+  "proxy_hops": 1,
+  "ip_allowlist": [],
+  "ip_blocklist": [],
+  "secure_cookies": true,
+  "global_cdn": "https://cdn.jsdmirror.cn",
+  "id_generation": {
+    "length": 4,
+    "use_uppercase": false,
+    "use_lowercase": true,
+    "use_digits": false
+  },
+  "share_token": {
+    "length": 64,
+    "use_uppercase": true,
+    "use_lowercase": true,
+    "use_digits": true
+  },
+  "session_timeout": {
+    "enabled": false,
+    "minutes": 1440
+  },
+  "note_expiration": {
+    "enabled": false,
+    "hours": 24
+  },
+  "latex_render": {
+    "enabled": true
+  },
+  "code_highlight": {
+    "enabled": true
+  },
+  "cache": {
+    "enabled": true,
+    "backend": "redis",
+    "default_timeout": 300,
+    "redis_url": "redis://localhost:6379/0"
+  },
+  "password_policy": {
+    "min_length": 8,
+    "max_length": 128,
+    "require_uppercase": true,
+    "require_lowercase": true,
+    "require_digits": true,
+    "require_special": true
+  },
+  "benben": {
+    "max_length": 1024,
+    "page_size": 50,
+    "cooldown_seconds": 3,
+    "max_height_px": 280,
+    "max_posts": 200
+  },
+  "note_editor": {
+    "live_preview_default": false,
+    "markdown_manual_url": "https://markdown.com.cn"
+  },
+  "note_refs": {
+    "enabled": true,
+    "search_limit": 8,
+    "scan_limit": 100
+  },
+  "home_page": {
+    "recent_notes_limit": 5,
+    "recent_shares_limit": 5
+  },
+  "avatar": {
+    "enabled": true,
+    "url_template": "https://cn.cravatar.com/avatar/{hash}?d=identicon&f=y",
+    "size": 24
+  },
+  "images": {
+    "enabled": true,
+    "max_size_kb": 2048,
+    "max_total_kb": 51200
+  },
+  "attachments": {
+    "enabled": true,
+    "max_size_kb": 50,
+    "max_per_note_kb": 500,
+    "max_total_kb": 10240,
+    "allow_anonymous_download": false,
+    "max_concurrent_downloads": 1,
+    "max_concurrent_uploads": 1,
+    "download_rate_limit": {
+      "window_seconds": 60,
+      "max_requests": 120
+    },
+    "blocked_extensions": [
+      "exe", "bat", "cmd", "com", "msi", "scr", "pif",
+      "vbs", "vbe", "js", "jse", "ws", "wsf", "wsc", "wsh",
+      "ps1", "psm1", "psd1", "psc1", "psc2",
+      "reg", "inf", "hta", "cpl", "lnk", "url",
+      "sh", "bash", "csh", "ksh", "zsh", "fish",
+      "command", "app", "workflow", "scpt", "applescript",
+      "dylib", "so", "dll", "class", "jar",
+      "py", "pyc", "pyo", "pyd", "rb", "pl", "pm", "tcl", "tk",
+      "zip", "zipx", "rar", "7z", "cab", "lzh", "ace", "arc", "arj",
+      "tar", "tar.gz", "tgz", "tpz", "gz", "bz2", "xz", "z",
+      "deb", "rpm", "dmg", "iso", "img", "bin"
+    ]
+  },
+  "comments": {
+    "enabled": true,
+    "max_length": 1024,
+    "max_comments": 200,
+    "cooldown_seconds": 3,
+    "page_size": 50,
+    "max_height_px": 280
+  },
+  "wiki": {
+    "max_page_kb": 512,
+    "max_pages": 500,
+    "max_revisions": 20,
+    "max_slug_depth": 4,
+    "home_slug": "home"
+  },
+  "downloads": {
+    "dir": "downloads",
+    "github_repo": "rusin-dev/rusin-note-desktop",
+    "manifest_url": "",
+    "manifest_cache_seconds": 300,
+    "max_file_mb": 512,
+    "download_rate_limit": {
+      "window_seconds": 60,
+      "max_requests": 10
+    }
+  },
+  "oauth": {
+    "enabled": false,
+    "auto_register": true,
+    "timeout_seconds": 10,
+    "providers": {
+      "github": {"client_id": "", "client_secret": ""},
+      "google": {"client_id": "", "client_secret": ""},
+      "microsoft": {"client_id": "", "client_secret": "", "tenant": "common"},
+      "wechat": {"app_id": "", "app_secret": ""},
+      "qq": {"app_id": "", "app_secret": ""}
+    }
+  },
+  "gitee_sync": {
+    "client_id": "",
+    "client_secret": "",
+    "scope": "user_info projects pull_requests hook",
+    "timeout_seconds": 10,
+    "poll_seconds": 300,
+    "max_notes": 1000,
+    "max_file_kb": 2048
+  },
+  "oauth_server": {
+    "issuer": "",
+    "authorization_code_ttl_seconds": 300,
+    "access_token_ttl_seconds": 3600,
+    "id_token_ttl_seconds": 300
+  },
+  "security": {
+    "code_length": 6,
+    "code_ttl_seconds": 600,
+    "code_resend_cooldown_seconds": 60,
+    "code_max_attempts": 5,
+    "challenge_ttl_seconds": 600,
+    "timeout_seconds": 10,
+    "email_login": true,
+    "phone_login": true,
+    "smtp": {
+      "host": "",
+      "port": 587,
+      "username": "",
+      "password": "",
+      "from_addr": "",
+      "use_tls": true,
+      "use_ssl": false
+    },
+    "sms": {
+      "webhook_url": "",
+      "token": ""
+    }
+  },
+  "captcha": {
+    "type": "image",
+    "slide": {
+      "width": 320,
+      "height": 160,
+      "piece": 46,
+      "tolerance_px": 6,
+      "ttl_seconds": 300,
+      "min_drag_ms": 250,
+      "max_drag_ms": 20000,
+      "min_samples": 8,
+      "damping_min": 0.55,
+      "damping_max": 2.2
+    },
+    "risk": {
+      "enabled": true,
+      "decay_hours": 12,
+      "suspicious_points": 14,
+      "fail_points": 5,
+      "escalate_score": 30,
+      "flag_score": 60,
+      "reg_window_seconds": 3600,
+      "max_registrations": 2
+    }
+  },
+  "features": {
+    "world_notes": true,
+    "benben": true,
+    "share_links": true,
+    "open_register": true,
+    "note_tags": true,
+    "note_folders": true,
+    "note_pins": true,
+    "heading_anchors": true,
+    "markdown_alerts": true,
+    "note_images": true,
+    "note_attachments": true,
+    "comments": true,
+    "wiki": false,
+    "downloads": true,
+    "oauth_github": false,
+    "oauth_google": false,
+    "oauth_microsoft": false,
+    "oauth_wechat": false,
+    "oauth_qq": false,
+    "gitee_sync": false,
+    "oauth_server": false,
+    "two_factor_auth": false,
+    "email_verify": false,
+    "phone_verify": false
+  },
+  "admin_users": ["sysadmin"],
+  "max_note_id_length": 250,
+  "max_note_tags": 10,
+  "max_tag_length": 24,
+  "max_folder_name_length": 64,
+  "max_folder_depth": 8,
+  "logger": {
+    "max_size": 4294967296,
+    "path_pattern": "log/{timestamp}.log"
+  },
+  "waf": {
+    "enabled": false,
+    "auto_download": true,
+    "crs_version": "4.29.0",
+    "crs_url": "https://github.com/coreruleset/coreruleset/releases/download/v4.29.0/coreruleset-4.29.0-minimal.tar.gz",
+    "crs_sha256": "1aa1c5c8fc29e532d35293bcea36bf72de61db8f6ed4716a0f91ab14552b7fed",
+    "verify_checksum": true,
+    "mode": "on",
+    "response_inspection": false,
+    "listen": "80",
+    "server_name": "_",
+    "upstream": "127.0.0.1",
+    "upstream_port": 0,
+    "paranoia_level": 1,
+    "inbound_anomaly_threshold": 5,
+    "outbound_anomaly_threshold": 4,
+    "body_limit_kb": 0,
+    "default_exclusions": true,
+    "update_stale_days": 7,
+    "validate_config": true,
+    "auto_reload": false
+  },
+  "debug": false
+}

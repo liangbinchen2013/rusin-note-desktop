@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block body_class %}auth-page{% endblock %}
+{% block content %}
+<div class="auth-split">
+    <aside class="auth-art" aria-hidden="true">
+        <img src="/image/login-hero.webp" alt="">
+    </aside>
+    <div class="auth-main">
+        <a href="{{ lang_switch_url }}" class="lang-toggle auth-lang" title="{{ t('lang_switch') }}" aria-label="{{ t('lang_switch') }}">
+            <i class="fa-solid fa-globe" aria-hidden="true"></i>
+            <span>{% if lang == 'zh' %}En{% else %}中{% endif %}</span>
+        </a>
+        <div class="auth-form">
+        <h1>{{ t('login_title') }}</h1>
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        <form method="POST" action="/login">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>{{ t('login_username') }}</label>
+                <input type="text" name="username" required autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label>{{ t('login_password') }}</label>
+                <input type="password" name="password" required autocomplete="current-password">
+            </div>
+            {% include "partials/_captcha_row.html" %}
+            <button type="submit">{{ t('login_submit') }}</button>
+        </form>
+
+        {% if oauth_providers or feature_enabled('email_verify') or feature_enabled('phone_verify') %}
+        <div class="login-sep"><span>{{ t('login_or') }}</span></div>
+        {% endif %}
+        {% if oauth_providers %}
+        <div class="oauth-grid">
+            {% for p in oauth_providers %}
+            <a class="oauth-btn" href="/oauth/{{ p.key }}">
+                <i class="{{ p.icon }}" aria-hidden="true"></i>
+                <span>{{ p.label }}</span>
+            </a>
+            {% endfor %}
+        </div>
+        <p class="oauth-terms">{{ t('oauth_terms_hint') }} <a href="/disclaimer" target="_blank" rel="noopener noreferrer">{{ t('reg_agree_terms_doc') }}</a></p>
+        {% endif %}
+        {% if feature_enabled('email_verify') or feature_enabled('phone_verify') %}
+        <p style="margin-top:12px;"><a href="/login/otp">{{ t('otp_login_link') }}</a></p>
+        {% endif %}
+        <p style="margin-top:12px;"><a href="/register">{{ t('login_no_account') }}</a></p>
+        </div>
+    </div>
+</div>
+
+<style>
+    {% include "partials/_auth_split_css.html" %}
+    .login-sep { display: flex; align-items: center; gap: 12px; margin: 22px 0 16px; color: var(--muted); font-size: 13px; }
+    .login-sep::before, .login-sep::after { content: ""; flex: 1; height: 1px; background: var(--card-border); }
+    .oauth-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+    .oauth-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--card-border); border-radius: 8px; background: var(--card-bg); color: var(--text); text-decoration: none; font-size: 14px; transition: border-color 0.18s ease, box-shadow 0.18s ease; }
+    .oauth-btn:hover { border-color: var(--glow-ring); box-shadow: var(--glow-shadow); text-decoration: none; }
+    .oauth-btn i { font-size: 16px; }
+    .oauth-terms { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; text-align: center; }
+    .oauth-terms a { text-decoration: underline; }
+</style>
+{% include "partials/_captcha_js.html" %}
+{% endblock %}
