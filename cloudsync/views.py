@@ -62,7 +62,8 @@ def save_settings():
         "request_delay": request.form.get("request_delay", "0.3") or "0.3",
     }
     if payload["remote_url"] and "://" not in payload["remote_url"]:
-        payload["remote_url"] = "https://" + payload["remote_url"]
+        local_host = payload["remote_url"].startswith(("localhost", "127.0.0.1"))
+        payload["remote_url"] = ("http://" if local_host else "https://") + payload["remote_url"]
     current = settings_store.load_settings()
     if not payload["session_cookie"]:
         payload["session_cookie"] = current.get("session_cookie", "")

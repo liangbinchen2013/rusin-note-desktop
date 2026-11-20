@@ -192,7 +192,7 @@ def push_benben(settings: dict) -> dict:
         pushed.add(signature)
         report["ok"] += 1
         report["details"].append("犇犇已推送")
-        if len(report["details"]) and report["ok"] < len(mine):
+        if report["ok"] < len(mine):
             time.sleep(3.5)  # 云端默认 3 秒冷却
     state["pushed_benben"] = list(pushed)[-500:]
     settings_store.save_state(state)
@@ -212,5 +212,6 @@ def sync_all(settings: dict) -> dict:
             part = {"ok": 0, "skipped": 0, "failed": 1, "details": [str(exc)]}
         for key in ("ok", "skipped", "failed"):
             total[key] += part[key]
-        total["details"].append(f"[{label}] " + "；".join(part["details"]) or f"[{label}] 完成")
+        details = "；".join(part["details"])
+        total["details"].append(f"[{label}] {details}" if details else f"[{label}] 完成")
     return total
