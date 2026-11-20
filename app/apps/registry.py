@@ -5,6 +5,8 @@
 from flask import Flask
 
 from cloudsync.views import bp as cloud_sync_bp
+from ideapi.api import bp as ide_api_bp
+from ideapi.web import bp as ide_web_bp
 
 from app.apps.admin.views import bp as admin_bp
 from app.apps.attachments.views import bp as attachments_bp
@@ -31,6 +33,8 @@ from app.apps.world.views import bp as world_bp
 
 
 def register_blueprints(app: Flask) -> None:
+    # IDE 首页优先：/ 直接返回 React 构建产物；旧 Jinja 页面仍可通过原有路径访问
+    app.register_blueprint(ide_web_bp)
     app.register_blueprint(home_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(benben_bp)
@@ -59,6 +63,8 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(downloads_bp)
     # 本地应用新增：云端同步设置与操作页（单段 /sync 路由，须先于 world_short）
     app.register_blueprint(cloud_sync_bp)
+    # IDE 前端使用的本地 JSON API
+    app.register_blueprint(ide_api_bp)
     # 插件蓝图（Phase 1 安装 + 注册）：必须在 world_short 之前，
     # 否则插件的单段路由（如 /myplug）会被 /<id> 短链抢匹配
     from app.core import plugins
