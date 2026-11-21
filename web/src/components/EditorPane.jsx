@@ -5,12 +5,12 @@ import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
-import { X, Eye, Columns2, Save, FileCode2, Link2, Cloud } from 'lucide-react'
+import { X, Eye, Columns2, Save, FileCode2, Link2, Cloud, HardDriveDownload, Copy } from 'lucide-react'
 
 export default function EditorPane({
   tabs, activeId, draft, dirty, theme, preview, onPreviewChange,
   onChange, onFieldChange, onSave, onCloseTab, onOpen,
-  scrollSync, onScrollSyncChange, remote,
+  scrollSync, onScrollSyncChange, remote, cached, onSaveAs,
 }) {
   const editorRef = useRef(null)
   const previewRef = useRef(null)
@@ -65,11 +65,14 @@ export default function EditorPane({
 
       <div className="editor-toolbar">
         {remote && <span className="remote-badge"><Cloud size={13} /> 云端</span>}
+        {cached && <span className="cache-badge"><HardDriveDownload size={13} /> 本地缓存</span>}
         <div className="toolbar-fields">
+          <input className="name-input" value={draft.title || ''} onChange={(e) => onFieldChange('title', e.target.value)} placeholder="笔记名称" title="笔记名称（另存为可新建副本）" />
           <input className="folder-input" value={draft.folder || ''} onChange={(e) => onFieldChange('folder', e.target.value)} placeholder="文件夹（用 / 分层）" />
           <input className="tags-input" value={(draft.tags || []).join(', ')} onChange={(e) => onFieldChange('tags', e.target.value)} placeholder="标签，逗号分隔" />
         </div>
         <div className="toolbar-actions">
+          <button className="small" onClick={onSaveAs} title="按名称另存为新的本地笔记"><Copy size={14} /> 另存为</button>
           <button className={`small ${scrollSync ? 'active' : ''}`} onClick={() => onScrollSyncChange(!scrollSync)} title="编辑器与预览滚动同步">
             <Link2 size={14} /> 同步滚动
           </button>

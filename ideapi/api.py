@@ -41,13 +41,20 @@ def _local_user() -> str:
 
 
 def _note_rows(user: str) -> list[dict]:
+    from app.core import note_titles
+
     rows = notes.list_user_notes_detailed(user)
     folder_map = folders.get_user_note_folders(user)
     tag_map = tags.get_user_note_tags(user)
+    title_map = note_titles.get_user_note_titles(user)
     result = []
     for row in rows:
         note_id = row["id"]
-        title = (row.get("title") or "").strip() or note_id
+        title = (
+            title_map.get(note_id, "").strip()
+            or (row.get("title") or "").strip()
+            or note_id
+        )
         result.append({
             "id": note_id,
             "title": title,
@@ -57,6 +64,16 @@ def _note_rows(user: str) -> list[dict]:
             "size": row.get("size") or 0,
         })
     return result
+
+
+def _mirror_local_note(user: str, note_id: str, content: str, title: str, folder: str, tags_list: list) -> None:
+    """把本地笔记同步一份 md 到工作区目录（失败不影响主流程）。"""
+    try:
+        from . import workspace
+
+        workspace.write_file(workspace.local_root(), note_id, content, title, folder, tags_list)
+    except Exception:
+        pass
 
 
 @bp.get("/bootstrap")
@@ -79,6 +96,8 @@ def bootstrap():
 
 @bp.get("/notes/<note_id>")
 def get_note(note_id: str):
+    from app.core import note_titles
+
     user = _local_user()
     content = notes.read_note(user, note_id)
     if not notes.note_exists(user, note_id):
@@ -86,6 +105,8 @@ def get_note(note_id: str):
     return jsonify({
         "id": note_id,
         "content": content,
+        "title": note_titles.get_note_title(user, note_id)
+        or notes.note_title(user, note_id) or note_id,
         "tags": tags.get_note_tags(user, note_id),
         "folder": folders.get_note_folder(user, note_id),
         "mtime": notes.get_note_mtime(user, note_id) or 0,
@@ -95,7 +116,11 @@ def get_note(note_id: str):
 @bp.post("/notes")
 def create_note():
     user = _local_user()
-    folder = str((request.get_json(silent=True) or {}).get("folder") or "")
+    from app.core import note_titles
+
+    payload = request.get_json(silent=True) or {}
+    folder = str(payload.get("folder") or "")
+    title = note_titles.clean_title(payload.get("title") or "")
     for _ in range(20):
         note_id = notes.generate_random_id()
         if not notes.note_exists(user, note_id):
@@ -107,11 +132,16 @@ def create_note():
         return jsonify({"error": "创建失败"}), 500
     if folder:
         folders.set_note_folder(user, note_id, folder)
+    if title:
+        note_titles.set_note_title(user, note_id, title)
+    _mirror_local_note(user, note_id, "\n", title or note_id, folder, [])
     return jsonify({"id": note_id}), 201
 
 
 @bp.put("/notes/<note_id>")
 def save_note(note_id: str):
+    from app.core import note_titles
+
     user = _local_user()
     payload = request.get_json(silent=True) or {}
     content = payload.get("content")
@@ -123,6 +153,7 @@ def save_note(note_id: str):
     if not isinstance(note_tags, list):
         note_tags = []
     folder = str(payload.get("folder") or "")
+    title = note_titles.clean_title(payload.get("title") or "")
 
     if not notes.note_exists(user, note_id) and not content.strip():
         return jsonify({"error": "新笔记不能为空"}), 400
@@ -130,14 +161,61 @@ def save_note(note_id: str):
         return jsonify({"error": "保存失败"}), 500
     tags.set_note_tags(user, note_id, note_tags)
     folders.set_note_folder(user, note_id, folder)
+    if title:
+        note_titles.set_note_title(user, note_id, title)
+    _mirror_local_note(user, note_id, content, title or note_id, folder, note_tags)
     return jsonify({"ok": True, "mtime": notes.get_note_mtime(user, note_id) or 0})
 
 
 @bp.delete("/notes/<note_id>")
 def delete_note(note_id: str):
+    from app.core import note_titles
+    from . import workspace
+
     user = _local_user()
     notes.write_note(user, note_id, "")  # 后端会级联清理标签/文件夹/置顶
+    note_titles.delete_note_title(user, note_id)
+    try:
+        workspace.remove_file(workspace.local_root(), note_id)
+    except Exception:
+        pass
     return jsonify({"ok": True})
+
+
+@bp.post("/notes/save-as")
+def save_as_note():
+    """按用户指定名称另存为新笔记，返回新 ID。"""
+    from app.core import note_titles
+
+    user = _local_user()
+    payload = request.get_json(silent=True) or {}
+    title = note_titles.clean_title(payload.get("title") or "")
+    if not title:
+        return jsonify({"error": "请填写名称"}), 400
+    content = payload.get("content")
+    if not isinstance(content, str):
+        content = "\n"
+    note_tags = payload.get("tags", [])
+    if isinstance(note_tags, str):
+        note_tags = [t.strip() for t in note_tags.split(",") if t.strip()]
+    if not isinstance(note_tags, list):
+        note_tags = []
+    folder = str(payload.get("folder") or "")
+    for _ in range(20):
+        note_id = notes.generate_random_id()
+        if not notes.note_exists(user, note_id):
+            break
+    else:
+        return jsonify({"error": "无法生成唯一笔记 ID"}), 500
+    if not notes.write_note(user, note_id, content or "\n"):
+        return jsonify({"error": "另存为失败"}), 500
+    note_titles.set_note_title(user, note_id, title)
+    if note_tags:
+        tags.set_note_tags(user, note_id, note_tags)
+    if folder:
+        folders.set_note_folder(user, note_id, folder)
+    _mirror_local_note(user, note_id, content, title, folder, note_tags)
+    return jsonify({"id": note_id}), 201
 
 
 @bp.get("/search")
@@ -258,6 +336,181 @@ def delete_remote_note(note_id: str):
     return jsonify({"ok": True})
 
 
+@bp.get("/workspace/paths")
+def workspace_paths():
+    """返回工作区目录配置及当前文件数量。"""
+    from cloudsync import settings as sync_settings
+    from . import workspace
+
+    settings = sync_settings.load_settings()
+    local = workspace.local_root()
+    cloud = workspace.cloud_root()
+    return jsonify({
+        "localDir": str(local),
+        "cloudDir": str(cloud),
+        "customLocal": bool(str(settings.get("local_notes_dir") or "").strip()),
+        "customCloud": bool(str(settings.get("cloud_cache_dir") or "").strip()),
+        "localCount": len(workspace.list_files(local)),
+        "cloudCount": len(workspace.list_files(cloud)),
+    })
+
+
+@bp.put("/workspace/paths")
+def save_workspace_paths():
+    """设置本地笔记目录与云端缓存目录。"""
+    from cloudsync import settings as sync_settings
+
+    payload = request.get_json(silent=True) or {}
+    current = sync_settings.load_settings()
+    for key in ("local_notes_dir", "cloud_cache_dir"):
+        if key in payload:
+            current[key] = str(payload[key] or "").strip()
+    try:
+        sync_settings.save_settings(current)
+    except OSError as exc:
+        return jsonify({"error": f"保存失败：{exc}"}), 500
+    return jsonify({"ok": True})
+
+
+@bp.post("/workspace/pick-folder")
+def pick_folder():
+    """通过 pywebview 打开原生文件夹选择框；浏览器模式返回提示让用户输入。"""
+    initial = str((request.get_json(silent=True) or {}).get("initial") or "")
+    try:
+        import webview
+
+        if webview.windows:
+            result = webview.windows[0].create_file_dialog(
+                webview.FOLDER_DIALOG, directory=initial or None
+            )
+            if result:
+                return jsonify({"path": result[0] if isinstance(result, (tuple, list)) else str(result)})
+    except Exception:
+        pass
+    return jsonify({"path": "", "manual": True})
+
+
+@bp.get("/workspace/local/files")
+def local_files():
+    from . import workspace
+
+    return jsonify({"files": workspace.list_files(workspace.local_root())})
+
+
+@bp.post("/workspace/local/sync-all")
+def local_sync_all():
+    """把全部本地笔记镜像到工作区目录。"""
+    from app.core import note_titles
+    from . import workspace
+
+    user = _local_user()
+    count = 0
+    for row in _note_rows(user):
+        note_id = row["id"]
+        content = notes.read_note(user, note_id)
+        workspace.write_file(
+            workspace.local_root(), note_id, content,
+            row.get("title") or note_id, row.get("folder") or "", row.get("tags") or [],
+        )
+        count += 1
+    return jsonify({"ok": True, "count": count})
+
+
+@bp.get("/workspace/cloud/files")
+def cloud_files():
+    from . import workspace
+
+    return jsonify({"files": workspace.list_files(workspace.cloud_root())})
+
+
+@bp.post("/workspace/cloud/pull")
+def cloud_pull():
+    """把云端笔记逐篇拉取为本地临时缓存（类网盘离线文件）。"""
+    from cloudsync import service as sync_service
+    from . import workspace
+
+    settings = _remote_settings()
+    if not settings:
+        return jsonify({"error": "尚未配置云端站点与登录态"}), 400
+    root = workspace.cloud_root()
+    try:
+        rows = sync_service.remote_note_rows(settings)
+        client = sync_service.make_client(settings)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
+    ok = 0
+    failed = 0
+    details = []
+    for row in rows:
+        note_id = row["id"]
+        try:
+            note = client.read_note(note_id)
+            workspace.write_file(
+                root, note_id, note.get("content") or "",
+                row.get("title") or note_id,
+                note.get("folder") or row.get("folder") or "",
+                row.get("tags") or [],
+            )
+            ok += 1
+        except Exception as exc:
+            failed += 1
+            details.append(f"{note_id}: {exc}")
+    return jsonify({"ok": ok, "failed": failed, "skipped": 0, "details": details})
+
+
+@bp.get("/workspace/cloud/files/<note_id>")
+def cloud_file_read(note_id: str):
+    from . import workspace
+
+    note = workspace.read_file(workspace.cloud_root(), note_id)
+    if not note:
+        return jsonify({"error": "本地缓存不存在，请先拉取云端笔记"}), 404
+    return jsonify(note)
+
+
+@bp.put("/workspace/cloud/files/<note_id>")
+def cloud_file_save(note_id: str):
+    """一键编辑：先写本地缓存，再推送回云端。"""
+    from cloudsync import service as sync_service
+    from . import workspace
+
+    payload = request.get_json(silent=True) or {}
+    content = payload.get("content")
+    if not isinstance(content, str):
+        return jsonify({"error": "content 必须是字符串"}), 400
+    note_tags = payload.get("tags", [])
+    if isinstance(note_tags, str):
+        note_tags = [t.strip() for t in note_tags.split(",") if t.strip()]
+    if not isinstance(note_tags, list):
+        note_tags = []
+    folder = str(payload.get("folder") or "")
+    title = str(payload.get("title") or "")
+    root = workspace.cloud_root()
+    meta = workspace.write_file(root, note_id, content, title, folder, note_tags)
+
+    settings = _remote_settings()
+    pushed = False
+    push_error = ""
+    if settings:
+        try:
+            sync_service.make_client(settings).post_note(
+                note_id, content, ",".join(note_tags), folder,
+            )
+            pushed = True
+        except Exception as exc:
+            push_error = str(exc)
+    return jsonify({"ok": True, "pushed": pushed, "pushError": push_error, "file": meta.get("file")})
+
+
+@bp.delete("/workspace/cloud/files/<note_id>")
+def cloud_file_delete(note_id: str):
+    """仅删除本地缓存副本，不删除云端笔记。"""
+    from . import workspace
+
+    workspace.remove_file(workspace.cloud_root(), note_id)
+    return jsonify({"ok": True})
+
+
 @bp.get("/sync/status")
 def sync_status():
     from cloudsync import service as sync_service
@@ -265,14 +518,19 @@ def sync_status():
 
     settings = sync_settings.load_settings()
     state = sync_settings.load_state()
-    connection = {"ok": False, "message": "尚未配置云端地址与登录态"}
-    if request.args.get("check") == "1" and settings.get("remote_url") and settings.get("session_cookie"):
+    configured = bool(settings.get("remote_url") and settings.get("session_cookie"))
+    if configured:
+        connection = {"ok": False, "message": "配置已保存；点击「测试连接」验证云端"}
+    else:
+        connection = {"ok": False, "message": "尚未配置云端地址与登录态"}
+    if request.args.get("check") == "1" and configured:
         try:
             ok, message = sync_service.make_client(settings).check_connection()
             connection = {"ok": ok, "message": message}
         except Exception as exc:
             connection = {"message": str(exc)}
     return jsonify({
+        "configured": configured,
         "settings": {
             "remote_url": settings.get("remote_url", ""),
             "remote_user": settings.get("remote_user", ""),

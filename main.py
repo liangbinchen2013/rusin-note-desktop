@@ -49,6 +49,26 @@ def build_server(port: int):
     return create_server(create_app(), host="127.0.0.1", port=port, threads=8)
 
 
+class DesktopApi:
+    """暴露给前端 WebView 的原生能力（文件夹选择等）。"""
+
+    def pickFolder(self, initial: str = ""):
+        try:
+            import webview
+
+            if not webview.windows:
+                return {"path": "", "manual": True}
+            result = webview.windows[0].create_file_dialog(
+                webview.FOLDER_DIALOG, directory=initial or None
+            )
+            if result:
+                path = result[0] if isinstance(result, (tuple, list)) else str(result)
+                return {"path": path}
+        except Exception:
+            pass
+        return {"path": "", "manual": True}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="如形本地笔记")
     parser.add_argument("--browser", action="store_true", help="用系统浏览器代替原生窗口")
@@ -73,7 +93,7 @@ def main() -> int:
             storage_path.mkdir(parents=True, exist_ok=True)
             window = webview.create_window(
                 "如形本地笔记 · IDE", url=url, width=1440, height=900,
-                min_size=(1024, 680), maximized=True,
+                min_size=(1024, 680), maximized=True, js_api=DesktopApi(),
             )
             webview.start(private_mode=False, storage_path=str(storage_path))
             opened_window = True

@@ -22,6 +22,9 @@ DEFAULT_SETTINGS = {
     "overwrite_local": True,
     "pull_pages": 1,
     "request_delay": 0.3,
+    # 工作区目录：留空表示使用默认位置（本地=data/local_notes，云端=系统临时目录）
+    "local_notes_dir": "",
+    "cloud_cache_dir": "",
 }
 
 DEFAULT_STATE = {

@@ -13,7 +13,7 @@ export default function ActivityBar({ view, onView, themeMode, onCycleTheme, onP
   const ThemeIcon = themeMode === 'dark' ? Moon : themeMode === 'light' ? Sun : Monitor
   return (
     <div className="activity-bar">
-      <img className="activity-logo-img" src="/logo.png" alt="如形本地笔记" title="如形本地笔记" />
+      <img className="activity-logo-img" src="/logo-mark.png" alt="如形本地笔记" title="如形本地笔记" />
       {items.map(({ id, label, icon: Icon }) => (
         <button
           key={id}

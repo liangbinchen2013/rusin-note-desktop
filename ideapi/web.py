@@ -34,3 +34,8 @@ def favicon():
 @bp.route("/logo.png")
 def logo():
     return send_from_directory(DIST, "logo.png")
+
+
+@bp.route("/logo-mark.png")
+def logo_mark():
+    return send_from_directory(DIST, "logo-mark.png")
