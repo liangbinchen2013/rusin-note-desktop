@@ -7,6 +7,7 @@ dist/
 !web/dist/
 build/
 *.spec
+!release/rusin-note-ide.spec
 .env
 .workbuddy/
 web/node_modules/
